@@ -13,8 +13,40 @@ router.get('/faculties', asyncHandler(async (req, res) => {
   res.json(await service.listFaculties());
 }));
 
+router.get('/employee-groups', asyncHandler(async (req, res) => {
+  res.json(await service.listEmployeeGroups());
+}));
+
+router.get('/employee-groups/:id/accounts', asyncHandler(async (req, res) => {
+  res.json(await service.listEmployeeGroupAccounts(req.params.id));
+}));
+
+router.patch('/employee-accounts/:id', asyncHandler(async (req, res) => {
+  res.json(await service.updateEmployeeAccount(req.params.id, req.body));
+}));
+
+router.delete('/employee-accounts/:id', asyncHandler(async (req, res) => {
+  res.json(await service.deleteEmployeeAccount(req.user, req.params.id));
+}));
+
 router.get('/faculties/:id/employees', asyncHandler(async (req, res) => {
   res.json(await service.listFacultyEmployees(req.params.id));
+}));
+
+router.get('/advisors/info', asyncHandler(async (req, res) => {
+  res.json(await service.listAdvisorInfo());
+}));
+
+router.get('/advisor-groups/:id/advisors', asyncHandler(async (req, res) => {
+  res.json(await service.listAdvisorInfo(req.params.id));
+}));
+
+router.patch('/advisors/info/:id', asyncHandler(async (req, res) => {
+  res.json(await service.updateAdvisorInfo(req.params.id, req.body));
+}));
+
+router.delete('/advisors/info/:id', asyncHandler(async (req, res) => {
+  res.json(await service.deleteAdvisorInfo(req.params.id));
 }));
 
 router.get('/accounts', asyncHandler(async (req, res) => {

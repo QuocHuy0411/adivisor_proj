@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Navigate, useNavigate } from 'react-router-dom';
+import { Link, Navigate, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 
 export default function LoginPage() {
@@ -30,15 +30,16 @@ export default function LoginPage() {
         <form onSubmit={submit}>
           <label>
             Tên tài khoản
-            <input value={form.ten_tai_khoan} onChange={(e) => setForm({ ...form, ten_tai_khoan: e.target.value })} />
+            <input value={form.ten_tai_khoan} onChange={(event) => setForm({ ...form, ten_tai_khoan: event.target.value })} />
           </label>
           <label>
             Mật khẩu
-            <input type="password" value={form.mat_khau} onChange={(e) => setForm({ ...form, mat_khau: e.target.value })} />
+            <input type="password" value={form.mat_khau} onChange={(event) => setForm({ ...form, mat_khau: event.target.value })} />
           </label>
           {error ? <div className="error">{error}</div> : null}
           <button type="submit">Đăng nhập</button>
         </form>
+        <Link className="auth-link" to="/forgot-password">Quên mật khẩu?</Link>
       </section>
     </main>
   );

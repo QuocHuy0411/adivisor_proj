@@ -10,7 +10,7 @@ const roleLabel = {
   sinhvien: 'Sinh viên'
 };
 
-export default function AppLayout({ title, children }) {
+export default function AppLayout({ title, children, navItems = [], activeNav, onNavChange }) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -49,7 +49,20 @@ export default function AppLayout({ title, children }) {
           ) : null}
         </div>
 
-        {!isAdmin ? (
+        {isAdmin ? (
+          <nav className="admin-nav" aria-label="Quản trị viên">
+            {navItems.map((item) => (
+              <button
+                className={activeNav === item.key ? 'admin-nav-item active' : 'admin-nav-item'}
+                key={item.key}
+                type="button"
+                onClick={() => onNavChange?.(item.key)}
+              >
+                {item.label}
+              </button>
+            ))}
+          </nav>
+        ) : (
           <>
             <Link className="brand" to="/">Adivisor</Link>
             <nav>
@@ -57,7 +70,7 @@ export default function AppLayout({ title, children }) {
               <Link to="/notifications">Thông báo</Link>
             </nav>
           </>
-        ) : null}
+        )}
       </aside>
       <main className="content">
         <header className="content-header">

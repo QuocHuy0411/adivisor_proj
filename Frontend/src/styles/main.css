@@ -27,6 +27,11 @@ button {
   padding: 0 14px;
 }
 
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.72;
+}
+
 button.secondary {
   background: #6b7280;
 }
@@ -73,6 +78,24 @@ input, select, textarea {
   gap: 14px;
 }
 
+.auth-actions {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: 1fr 1fr;
+}
+
+.auth-link {
+  color: #0f766e;
+  display: inline-block;
+  font-weight: 700;
+  margin-top: 16px;
+  text-decoration: none;
+}
+
+.auth-link:hover {
+  text-decoration: underline;
+}
+
 .app-shell {
   display: grid;
   grid-template-columns: 260px 1fr;
@@ -110,6 +133,31 @@ nav a {
 
 nav a:hover {
   background: #eef7f5;
+  color: #0f766e;
+}
+
+.admin-nav {
+  display: grid;
+  gap: 14px;
+  margin-top: 80px;
+}
+
+.admin-nav-item {
+  background: transparent;
+  border-bottom: 1px solid #e5edf6;
+  border-radius: 0;
+  color: #1f2937;
+  font-weight: 700;
+  justify-content: start;
+  min-height: 56px;
+  padding: 10px 8px;
+  text-align: left;
+}
+
+.admin-nav-item:hover,
+.admin-nav-item.active {
+  background: #eef7f5;
+  border-radius: 6px;
   color: #0f766e;
 }
 
@@ -269,6 +317,11 @@ nav a:hover {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
+.admin-list-grid {
+  display: grid;
+  gap: 18px;
+}
+
 .import-panel {
   align-content: start;
   display: grid;
@@ -301,10 +354,14 @@ nav a:hover {
   border-radius: 8px;
   box-shadow: 0 24px 70px rgba(15, 23, 42, 0.22);
   max-height: 82vh;
-  max-width: 1100px;
+  max-width: 1040px;
   overflow: auto;
   padding: 18px;
   width: 100%;
+}
+
+.advisor-modal {
+  max-width: 980px;
 }
 
 .modal-header {
@@ -325,6 +382,27 @@ nav a:hover {
   flex-wrap: wrap;
   gap: 8px;
   justify-content: flex-end;
+}
+
+.edit-form {
+  background: #f8fafc;
+  border: 1px solid #dbe3ef;
+  border-radius: 8px;
+  display: grid;
+  gap: 14px;
+  margin-bottom: 16px;
+  padding: 14px;
+}
+
+.edit-form h3 {
+  font-size: 17px;
+  margin: 0;
+}
+
+.form-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .form-row {
@@ -360,7 +438,111 @@ th {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  min-width: 220px;
+  min-width: 132px;
+}
+
+.icon-actions {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+}
+
+.status-pill {
+  border-radius: 999px;
+  display: inline-flex;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1;
+  padding: 7px 10px;
+  white-space: nowrap;
+}
+
+.status-pill.active {
+  background: #dff6ee;
+  color: #0f766e;
+}
+
+.status-pill.inactive {
+  background: #f1f5f9;
+  color: #64748b;
+}
+
+.icon-button {
+  align-items: center;
+  background: #eef7f5;
+  border: 1px solid #c8e4df;
+  border-radius: 6px;
+  color: #0f766e;
+  display: inline-flex;
+  font-size: 17px;
+  height: 34px;
+  justify-content: center;
+  min-height: 34px;
+  padding: 0;
+  width: 34px;
+}
+
+.icon-button:hover {
+  background: #dff6ee;
+}
+
+.icon-button.danger {
+  background: #fff1f2;
+  border-color: #fecdd3;
+  color: #be123c;
+}
+
+.icon-button.danger:hover {
+  background: #ffe4e6;
+}
+
+.toast-wrap {
+  left: 50%;
+  max-width: min(720px, calc(100vw - 32px));
+  position: fixed;
+  top: 18px;
+  transform: translateX(-50%);
+  width: 100%;
+  z-index: 80;
+}
+
+.toast {
+  align-items: center;
+  border-radius: 8px;
+  box-shadow: 0 14px 34px rgba(15, 23, 42, 0.16);
+  display: flex;
+  font-weight: 700;
+  gap: 14px;
+  justify-content: space-between;
+  min-height: 52px;
+  padding: 12px 14px 12px 18px;
+}
+
+.toast.success {
+  background: #dff6ee;
+  color: #0f5f4e;
+}
+
+.toast.error {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.toast-close {
+  background: transparent;
+  border-radius: 6px;
+  color: inherit;
+  font-size: 20px;
+  font-weight: 800;
+  height: 32px;
+  line-height: 1;
+  min-height: 32px;
+  padding: 0;
+  width: 32px;
+}
+
+.toast-close:hover {
+  background: rgba(15, 23, 42, 0.08);
 }
 
 .success, .error, .page-status {
@@ -409,7 +591,7 @@ th {
     border-bottom: 1px solid #dbe3ef;
   }
 
-  .grid-2, .grid-3, .form-row, .detail-grid {
+  .grid-2, .grid-3, .form-row, .detail-grid, .form-grid {
     grid-template-columns: 1fr;
   }
 }

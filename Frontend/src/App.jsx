@@ -1,6 +1,7 @@
 import { Navigate, Route, Routes } from 'react-router-dom';
 import ProtectedRoute from './components/ProtectedRoute.jsx';
 import LoginPage from './pages/LoginPage.jsx';
+import ForgotPasswordPage from './pages/ForgotPasswordPage.jsx';
 import ChangePasswordPage from './pages/ChangePasswordPage.jsx';
 import AdminDashboard from './pages/AdminDashboard.jsx';
 import CtsvDashboard from './pages/CtsvDashboard.jsx';
@@ -28,6 +29,7 @@ export default function App() {
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/forgot-password" element={<ForgotPasswordPage />} />
       <Route path="/change-password" element={<ChangePasswordPage />} />
       <Route path="/" element={<Home />} />
       <Route path="/notifications" element={

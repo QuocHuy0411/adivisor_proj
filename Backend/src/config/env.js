@@ -14,5 +14,15 @@ export const env = {
   },
   jwtSecret: process.env.JWT_SECRET || 'dev_secret_change_me',
   jwtExpiresIn: process.env.JWT_EXPIRES_IN || '8h',
+  passwordResetExpiresIn: process.env.PASSWORD_RESET_EXPIRES_IN || '15m',
+  passwordResetOtpExpiresIn: process.env.PASSWORD_RESET_OTP_EXPIRES_IN || '5m',
+  smtp: {
+    host: process.env.SMTP_HOST || '',
+    port: Number(process.env.SMTP_PORT || 587),
+    secure: process.env.SMTP_SECURE === 'true',
+    user: process.env.SMTP_USER || '',
+    password: process.env.SMTP_PASSWORD || '',
+    from: process.env.SMTP_FROM || process.env.SMTP_USER || ''
+  },
   frontendUrl: process.env.FRONTEND_URL || 'http://localhost:5173'
 };

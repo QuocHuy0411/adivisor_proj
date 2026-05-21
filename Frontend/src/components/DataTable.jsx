@@ -12,7 +12,7 @@ export default function DataTable({ columns, rows, actions }) {
           {rows.length === 0 ? (
             <tr><td colSpan={columns.length + (actions ? 1 : 0)}>Chưa có dữ liệu</td></tr>
           ) : rows.map((row) => (
-            <tr key={row.id || row.ma_tai_khoan || row.ma_co_van || row.ma_lop || row.ma_phan_cong || row.ma_yeu_cau || row.ma_thong_bao}>
+            <tr key={row.id || row.ma_tai_khoan || row.ma_co_van || row.ma_lop || row.ma_phan_cong || row.ma_yeu_cau || row.ma_thong_bao || row.ma_don_vi || row.ma}>
               {columns.map((column) => (
                 <td key={column.key}>{column.render ? column.render(row) : row[column.key]}</td>
               ))}

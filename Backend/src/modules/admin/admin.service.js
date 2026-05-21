@@ -16,7 +16,7 @@ async function createAccount(connection, { ten_tai_khoan, email, role, defaultPa
     );
   } catch (error) {
     if (error.code === 'ER_DUP_ENTRY') {
-      throw badRequest(`Tên tài khoản hoặc email đã tồn tại: ${ten_tai_khoan}, ${email}`);
+      throw badRequest(`Ten tai khoan hoac email da ton tai: ${ten_tai_khoan}, ${email}`);
     }
     throw error;
   }
@@ -34,7 +34,7 @@ function valueOf(row, keys) {
 function normalizePriority(input) {
   const value = input === undefined || input === null || String(input).trim() === '' ? 2 : Number(input);
   if (!Number.isInteger(value) || value < 1 || value > 3) {
-    throw badRequest('Ưu tiên CVHT phải là số nguyên từ 1 đến 3');
+    throw badRequest('Uu tien CVHT phai la so nguyen tu 1 den 3');
   }
   return value;
 }
@@ -51,35 +51,223 @@ async function assertAccountAvailable(connection, { ten_tai_khoan, email }) {
   if (!existing) return;
 
   if (existing.ten_tai_khoan === ten_tai_khoan) {
-    throw badRequest(`Tên tài khoản ${ten_tai_khoan} đã tồn tại`);
+    throw badRequest(`Ten tai khoan ${ten_tai_khoan} da ton tai`);
   }
-  throw badRequest(`Email ${email} đã tồn tại trong tài khoản ${existing.ten_tai_khoan}`);
+  throw badRequest(`Email ${email} da ton tai trong tai khoan ${existing.ten_tai_khoan}`);
 }
 
 async function findFacultyByFullName(input) {
   const value = String(input || '').trim();
-  if (!value) throw badRequest('Thiếu tên khoa');
+  if (!value) throw badRequest('Thieu ten khoa');
   const rows = await query(
     'SELECT ma_khoa, ten_khoa FROM KHOA WHERE LOWER(ten_khoa) = LOWER(:value)',
     { value }
   );
-  if (!rows[0]) throw badRequest(`Không tìm thấy khoa "${value}". CSV phải ghi tên khoa đầy đủ.`);
+  if (!rows[0]) throw badRequest(`Khong tim thay khoa "${value}". CSV phai ghi ten khoa day du.`);
   return rows[0];
 }
 
 async function findFacultyByFullNameWithConnection(connection, input) {
   const value = String(input || '').trim();
-  if (!value) throw badRequest('Thiếu tên khoa');
+  if (!value) throw badRequest('Thieu ten khoa');
   const [rows] = await connection.execute(
     'SELECT ma_khoa, ten_khoa FROM KHOA WHERE LOWER(ten_khoa) = LOWER(?)',
     [value]
   );
-  if (!rows[0]) throw badRequest(`Không tìm thấy khoa "${value}". CSV phải ghi tên khoa đầy đủ.`);
+  if (!rows[0]) throw badRequest(`Khong tim thay khoa "${value}". CSV phai ghi ten khoa day du.`);
   return rows[0];
 }
 
 export async function listFaculties() {
   return query('SELECT ma_khoa, ten_khoa FROM KHOA ORDER BY ten_khoa');
+}
+
+export async function listEmployeeGroups() {
+  const faculties = await query(
+    `SELECT ma_khoa AS ma_don_vi,
+            ten_khoa AS ten_don_vi
+     FROM KHOA
+     ORDER BY ten_khoa`
+  );
+  return [
+    ...faculties,
+    { ma_don_vi: 'CTSV', ten_don_vi: 'Cong tac sinh vien' }
+  ];
+}
+
+export async function listEmployeeGroupAccounts(ma_don_vi) {
+  if (ma_don_vi === 'CTSV') {
+    return query(
+      `SELECT nv.ma_nhan_vien AS ma,
+              nv.ho_va_ten,
+              NULL AS so_dien_thoai,
+              NULL AS chuyen_nganh,
+              acc.email,
+              acc.ten_tai_khoan,
+              acc.loai_tai_khoan,
+              'Nhan vien CTSV' AS vai_tro,
+              acc.is_active,
+              acc.ma_tai_khoan
+       FROM NHAN_VIEN_CTSV nv
+       JOIN TAI_KHOAN acc ON acc.ma_tai_khoan = nv.ma_tai_khoan
+       ORDER BY nv.ho_va_ten`
+    );
+  }
+
+  return query(
+    `SELECT tk.ma_nhan_vien AS ma,
+            tk.ho_va_ten,
+            NULL AS so_dien_thoai,
+            NULL AS chuyen_nganh,
+            acc.email,
+            acc.ten_tai_khoan,
+            acc.loai_tai_khoan,
+            'Truong Khoa' AS vai_tro,
+            acc.is_active,
+            acc.ma_tai_khoan
+     FROM TRUONG_KHOA tk
+     JOIN TAI_KHOAN acc ON acc.ma_tai_khoan = tk.ma_tai_khoan
+     WHERE tk.ma_khoa = :ma_don_vi
+     UNION ALL
+     SELECT cv.ma_co_van AS ma,
+            cv.ho_va_ten,
+            cv.so_dien_thoai,
+            cv.chuyen_nganh,
+            acc.email,
+            acc.ten_tai_khoan,
+            acc.loai_tai_khoan,
+            'Co van hoc tap' AS vai_tro,
+            acc.is_active,
+            acc.ma_tai_khoan
+     FROM CVHT cv
+     JOIN TAI_KHOAN acc ON acc.ma_tai_khoan = cv.ma_tai_khoan
+     WHERE cv.ma_khoa = :ma_don_vi
+     ORDER BY ho_va_ten`,
+    { ma_don_vi }
+  );
+}
+
+export async function listAdvisorInfo(ma_khoa) {
+  const filter = ma_khoa ? 'WHERE cv.ma_khoa = :ma_khoa' : '';
+  return query(
+    `SELECT cv.ma_co_van,
+            cv.ho_va_ten,
+            cv.so_dien_thoai,
+            cv.chuyen_nganh,
+            cv.uu_tien,
+            cv.ma_khoa,
+            k.ten_khoa
+     FROM CVHT cv
+     JOIN KHOA k ON k.ma_khoa = cv.ma_khoa
+     ${filter}
+     ORDER BY k.ten_khoa, cv.ho_va_ten`,
+    { ma_khoa }
+  );
+}
+
+export async function updateEmployeeAccount(ma_tai_khoan, payload) {
+  const rows = await query('SELECT * FROM TAI_KHOAN WHERE ma_tai_khoan = :ma_tai_khoan', { ma_tai_khoan });
+  const account = rows[0];
+  if (!account) throw notFound('Khong tim thay tai khoan');
+  if (account.loai_tai_khoan === 'admin') throw forbidden('Admin khong sua tai khoan Admin o danh sach nay');
+  if (account.loai_tai_khoan === 'covan') throw forbidden('Admin khong sua tai khoan CVHT tai danh sach tai khoan');
+
+  const ho_va_ten = String(payload.ho_va_ten || '').trim();
+  const email = String(payload.email || '').trim();
+  if (!ho_va_ten || !email) throw badRequest('Vui long nhap ho ten va email');
+
+  await transaction(async (connection) => {
+    const [duplicates] = await connection.execute(
+      'SELECT ma_tai_khoan FROM TAI_KHOAN WHERE email = ? AND ma_tai_khoan <> ? LIMIT 1',
+      [email, ma_tai_khoan]
+    );
+    if (duplicates[0]) throw badRequest(`Email ${email} da ton tai`);
+
+    await connection.execute('UPDATE TAI_KHOAN SET email = ? WHERE ma_tai_khoan = ?', [email, ma_tai_khoan]);
+    if (account.loai_tai_khoan === 'ctsv') {
+      await connection.execute('UPDATE NHAN_VIEN_CTSV SET ho_va_ten = ? WHERE ma_tai_khoan = ?', [ho_va_ten, ma_tai_khoan]);
+    } else if (account.loai_tai_khoan === 'khoa') {
+      await connection.execute('UPDATE TRUONG_KHOA SET ho_va_ten = ? WHERE ma_tai_khoan = ?', [ho_va_ten, ma_tai_khoan]);
+    }
+  });
+
+  return { message: 'Cap nhat tai khoan nhan vien thanh cong' };
+}
+
+export async function deleteEmployeeAccount(currentUser, ma_tai_khoan) {
+  const rows = await query('SELECT * FROM TAI_KHOAN WHERE ma_tai_khoan = :ma_tai_khoan', { ma_tai_khoan });
+  const account = rows[0];
+  if (!account) throw notFound('Khong tim thay tai khoan');
+  if (account.loai_tai_khoan === 'admin') throw forbidden('Admin khong the xoa tai khoan Admin');
+  if (account.loai_tai_khoan === 'covan') throw forbidden('Admin khong xoa tai khoan CVHT tai danh sach tai khoan');
+  if (currentUser.ma_tai_khoan === ma_tai_khoan) throw forbidden('Khong the tu xoa tai khoan dang dang nhap');
+
+  try {
+    await transaction(async (connection) => {
+      if (account.loai_tai_khoan === 'ctsv') {
+        await connection.execute('DELETE FROM NHAN_VIEN_CTSV WHERE ma_tai_khoan = ?', [ma_tai_khoan]);
+      } else if (account.loai_tai_khoan === 'khoa') {
+        await connection.execute('DELETE FROM TRUONG_KHOA WHERE ma_tai_khoan = ?', [ma_tai_khoan]);
+      }
+      await connection.execute('DELETE FROM TAI_KHOAN WHERE ma_tai_khoan = ?', [ma_tai_khoan]);
+    });
+  } catch (error) {
+    if (error.code === 'ER_ROW_IS_REFERENCED_2') {
+      throw badRequest('Khong the xoa tai khoan vi dang duoc du lieu khac tham chieu');
+    }
+    throw error;
+  }
+
+  return { message: 'Xoa tai khoan nhan vien thanh cong' };
+}
+
+export async function updateAdvisorInfo(ma_co_van, payload) {
+  const rows = await query('SELECT * FROM CVHT WHERE ma_co_van = :ma_co_van', { ma_co_van });
+  if (!rows[0]) throw notFound('Khong tim thay thong tin CVHT');
+
+  const next = {
+    ho_va_ten: String(payload.ho_va_ten || '').trim(),
+    so_dien_thoai: String(payload.so_dien_thoai || '').trim(),
+    ma_khoa: String(payload.ma_khoa || '').trim(),
+    chuyen_nganh: String(payload.chuyen_nganh || '').trim()
+  };
+  if (!next.ho_va_ten || !next.so_dien_thoai || !next.ma_khoa || !next.chuyen_nganh) {
+    throw badRequest('Vui long nhap day du thong tin CVHT');
+  }
+
+  const faculties = await query('SELECT ma_khoa FROM KHOA WHERE ma_khoa = :ma_khoa', { ma_khoa: next.ma_khoa });
+  if (!faculties[0]) throw badRequest('Khoa khong ton tai');
+
+  await query(
+    `UPDATE CVHT
+     SET ho_va_ten = :ho_va_ten,
+         so_dien_thoai = :so_dien_thoai,
+         ma_khoa = :ma_khoa,
+         chuyen_nganh = :chuyen_nganh
+     WHERE ma_co_van = :ma_co_van`,
+    { ...next, ma_co_van }
+  );
+
+  return { message: 'Cap nhat thong tin CVHT thanh cong' };
+}
+
+export async function deleteAdvisorInfo(ma_co_van) {
+  const rows = await query('SELECT * FROM CVHT WHERE ma_co_van = :ma_co_van', { ma_co_van });
+  const advisor = rows[0];
+  if (!advisor) throw notFound('Khong tim thay thong tin CVHT');
+
+  await transaction(async (connection) => {
+    await connection.execute('DELETE FROM YEU_CAU_THAY_THE WHERE ma_co_van = ?', [ma_co_van]);
+    await connection.execute('UPDATE PHAN_CONG SET ma_co_van = NULL WHERE ma_co_van = ?', [ma_co_van]);
+    await connection.execute('UPDATE LOP SET ma_co_van = NULL WHERE ma_co_van = ?', [ma_co_van]);
+    if (advisor.ma_tai_khoan) {
+      await connection.execute('UPDATE CVHT SET ma_tai_khoan = NULL WHERE ma_co_van = ?', [ma_co_van]);
+      await connection.execute('DELETE FROM TAI_KHOAN WHERE ma_tai_khoan = ?', [advisor.ma_tai_khoan]);
+    }
+    await connection.execute('DELETE FROM CVHT WHERE ma_co_van = ?', [ma_co_van]);
+  });
+
+  return { message: 'Xoa thong tin CVHT va tai khoan tuong ung thanh cong' };
 }
 
 export async function listFacultyEmployees(ma_khoa) {
@@ -90,7 +278,7 @@ export async function listFacultyEmployees(ma_khoa) {
             NULL AS chuyen_nganh,
             acc.email,
             acc.ten_tai_khoan,
-            'Trưởng Khoa' AS vai_tro,
+            'Truong Khoa' AS vai_tro,
             acc.is_active,
             acc.ma_tai_khoan
      FROM TRUONG_KHOA tk
@@ -103,7 +291,7 @@ export async function listFacultyEmployees(ma_khoa) {
             cv.chuyen_nganh,
             acc.email,
             acc.ten_tai_khoan,
-            'Cố vấn học tập' AS vai_tro,
+            'Co van hoc tap' AS vai_tro,
             COALESCE(acc.is_active, false) AS is_active,
             acc.ma_tai_khoan
      FROM CVHT cv
@@ -115,19 +303,19 @@ export async function listFacultyEmployees(ma_khoa) {
 }
 
 export async function importFacultyHeadAccounts(file) {
-  if (!file) throw badRequest('Vui lòng tải lên file CSV');
+  if (!file) throw badRequest('Vui long tai len file CSV');
   const records = parseCsv(file.buffer);
   let created = 0;
 
   for (const row of records) {
     const payload = {
-      ma_nhan_vien: valueOf(row, ['ma_nhan_vien', 'Mã nhân viên', 'Ma nhan vien']),
-      ho_va_ten: valueOf(row, ['ho_va_ten', 'Họ tên', 'Họ và tên', 'Ho ten', 'Ho va ten', 'Tên trưởng khoa', 'Ten truong khoa']),
+      ma_nhan_vien: valueOf(row, ['ma_nhan_vien', 'Ma nhan vien', 'Mã nhân viên']),
+      ho_va_ten: valueOf(row, ['ho_va_ten', 'Ho ten', 'Ho va ten', 'Họ tên', 'Họ và tên', 'Ten truong khoa', 'Tên trưởng khoa']),
       email: valueOf(row, ['email', 'Email']),
-      ten_khoa: valueOf(row, ['ten_khoa', 'Tên khoa', 'Ten khoa', 'Khoa'])
+      ten_khoa: valueOf(row, ['ten_khoa', 'Ten khoa', 'Tên khoa', 'Khoa'])
     };
     if (!payload.ma_nhan_vien || !payload.ho_va_ten || !payload.email || !payload.ten_khoa) {
-      throw badRequest('CSV Trưởng Khoa cần có: ma_nhan_vien, ho_va_ten, email, ten_khoa');
+      throw badRequest('CSV Truong Khoa can co: ma_nhan_vien, ho_va_ten, email, ten_khoa');
     }
 
     await transaction(async (connection) => {
@@ -136,7 +324,7 @@ export async function importFacultyHeadAccounts(file) {
         'SELECT ma_nhan_vien FROM TRUONG_KHOA WHERE ma_nhan_vien = ?',
         [payload.ma_nhan_vien]
       );
-      if (existingHeads[0]) throw badRequest(`Trưởng Khoa ${payload.ma_nhan_vien} đã tồn tại`);
+      if (existingHeads[0]) throw badRequest(`Truong Khoa ${payload.ma_nhan_vien} da ton tai`);
       await assertAccountAvailable(connection, {
         ten_tai_khoan: payload.ma_nhan_vien,
         email: payload.email
@@ -156,19 +344,19 @@ export async function importFacultyHeadAccounts(file) {
     created += 1;
   }
 
-  return { message: 'Import tài khoản Trưởng Khoa thành công', created };
+  return { message: 'Import tai khoan Truong Khoa thanh cong', created };
 }
 
 export async function createAdvisorInfo(payload) {
   const required = ['ma_co_van', 'ho_va_ten', 'so_dien_thoai', 'ten_khoa', 'chuyen_nganh'];
   for (const field of required) {
-    if (!payload[field]) throw badRequest(`Thiếu trường ${field}`);
+    if (!payload[field]) throw badRequest(`Thieu truong ${field}`);
   }
   const faculty = await findFacultyByFullName(payload.ten_khoa);
   const existing = await query('SELECT ma_co_van FROM CVHT WHERE ma_co_van = :ma_co_van', {
     ma_co_van: payload.ma_co_van
   });
-  if (existing[0]) throw badRequest(`CVHT ${payload.ma_co_van} đã tồn tại`);
+  if (existing[0]) throw badRequest(`CVHT ${payload.ma_co_van} da ton tai`);
 
   await query(
     `INSERT INTO CVHT
@@ -183,44 +371,44 @@ export async function createAdvisorInfo(payload) {
       chuyen_nganh: payload.chuyen_nganh
     }
   );
-  return { message: 'Tạo thông tin CVHT thành công' };
+  return { message: 'Tao thong tin CVHT thanh cong' };
 }
 
 export async function importAdvisorInfo(file) {
-  if (!file) throw badRequest('Vui lòng tải lên file CSV');
+  if (!file) throw badRequest('Vui long tai len file CSV');
   const records = parseCsv(file.buffer);
   let created = 0;
 
   for (const row of records) {
     await createAdvisorInfo({
-      ma_co_van: valueOf(row, ['ma_co_van', 'Mã cố vấn', 'Ma co van', 'Mã nhân viên', 'Ma nhan vien']),
-      ho_va_ten: valueOf(row, ['ho_va_ten', 'Tên CVHT', 'Ten CVHT', 'Họ và tên', 'Ho va ten', 'Họ tên', 'Ho ten']),
-      so_dien_thoai: valueOf(row, ['so_dien_thoai', 'Số điện thoại', 'số điện thoại', 'So dien thoai']),
-      ten_khoa: valueOf(row, ['ten_khoa', 'Tên khoa', 'Ten khoa', 'Khoa']),
-      chuyen_nganh: valueOf(row, ['chuyen_nganh', 'Chuyên ngành', 'Chuyen nganh']),
-      uu_tien: valueOf(row, ['uu_tien', 'Ưu tiên', 'Uu tien', 'Độ ưu tiên', 'Do uu tien']) || 2
+      ma_co_van: valueOf(row, ['ma_co_van', 'Ma co van', 'Mã cố vấn', 'Ma nhan vien', 'Mã nhân viên']),
+      ho_va_ten: valueOf(row, ['ho_va_ten', 'Ten CVHT', 'Tên CVHT', 'Ho va ten', 'Họ và tên', 'Ho ten', 'Họ tên']),
+      so_dien_thoai: valueOf(row, ['so_dien_thoai', 'So dien thoai', 'Số điện thoại']),
+      ten_khoa: valueOf(row, ['ten_khoa', 'Ten khoa', 'Tên khoa', 'Khoa']),
+      chuyen_nganh: valueOf(row, ['chuyen_nganh', 'Chuyen nganh', 'Chuyên ngành']),
+      uu_tien: valueOf(row, ['uu_tien', 'Uu tien', 'Ưu tiên', 'Do uu tien', 'Độ ưu tiên']) || 2
     });
     created += 1;
   }
 
-  return { message: 'Import thông tin CVHT thành công', created };
+  return { message: 'Import thong tin CVHT thanh cong', created };
 }
 
 export async function importAdvisorAccounts(file) {
-  if (!file) throw badRequest('Vui lòng tải lên file CSV');
+  if (!file) throw badRequest('Vui long tai len file CSV');
   const records = parseCsv(file.buffer);
   let created = 0;
 
   for (const row of records) {
-    const ma_co_van = valueOf(row, ['ma_co_van', 'Mã cố vấn', 'Ma co van', 'Mã nhân viên', 'Ma nhan vien']);
+    const ma_co_van = valueOf(row, ['ma_co_van', 'Ma co van', 'Mã cố vấn', 'Ma nhan vien', 'Mã nhân viên']);
     const email = valueOf(row, ['email', 'Email']);
-    if (!ma_co_van || !email) throw badRequest('CSV tài khoản CVHT cần có: ma_co_van, email');
+    if (!ma_co_van || !email) throw badRequest('CSV tai khoan CVHT can co: ma_co_van, email');
 
     await transaction(async (connection) => {
       const [advisors] = await connection.execute('SELECT * FROM CVHT WHERE ma_co_van = ?', [ma_co_van]);
       const advisor = advisors[0];
-      if (!advisor) throw badRequest(`Chưa có thông tin CVHT ${ma_co_van}, cần import thông tin trước`);
-      if (advisor.ma_tai_khoan) throw badRequest(`CVHT ${ma_co_van} đã có tài khoản`);
+      if (!advisor) throw badRequest(`Chua co thong tin CVHT ${ma_co_van}, can import thong tin truoc`);
+      if (advisor.ma_tai_khoan) throw badRequest(`CVHT ${ma_co_van} da co tai khoan`);
       await assertAccountAvailable(connection, { ten_tai_khoan: ma_co_van, email });
 
       const accountId = await createAccount(connection, {
@@ -234,33 +422,33 @@ export async function importAdvisorAccounts(file) {
     created += 1;
   }
 
-  return { message: 'Import tài khoản CVHT thành công', created };
+  return { message: 'Import tai khoan CVHT thanh cong', created };
 }
 
 export async function importAdvisorInfoAndAccounts(file) {
-  if (!file) throw badRequest('Vui lòng tải lên file CSV');
+  if (!file) throw badRequest('Vui long tai len file CSV');
   const records = parseCsv(file.buffer);
   let created = 0;
 
   for (const row of records) {
     const payload = {
-      ma_co_van: valueOf(row, ['ma_co_van', 'Mã cố vấn', 'Ma co van', 'Mã nhân viên', 'Ma nhan vien']),
-      ho_va_ten: valueOf(row, ['ho_va_ten', 'Tên CVHT', 'Ten CVHT', 'Họ và tên', 'Ho va ten', 'Họ tên', 'Ho ten']),
-      so_dien_thoai: valueOf(row, ['so_dien_thoai', 'Số điện thoại', 'số điện thoại', 'So dien thoai']),
+      ma_co_van: valueOf(row, ['ma_co_van', 'Ma co van', 'Mã cố vấn', 'Ma nhan vien', 'Mã nhân viên']),
+      ho_va_ten: valueOf(row, ['ho_va_ten', 'Ten CVHT', 'Tên CVHT', 'Ho va ten', 'Họ và tên', 'Ho ten', 'Họ tên']),
+      so_dien_thoai: valueOf(row, ['so_dien_thoai', 'So dien thoai', 'Số điện thoại']),
       email: valueOf(row, ['email', 'Email']),
-      ten_khoa: valueOf(row, ['ten_khoa', 'Tên khoa', 'Ten khoa', 'Khoa']),
-      chuyen_nganh: valueOf(row, ['chuyen_nganh', 'Chuyên ngành', 'Chuyen nganh']),
-      uu_tien: valueOf(row, ['uu_tien', 'Ưu tiên', 'Uu tien', 'Độ ưu tiên', 'Do uu tien']) || 2
+      ten_khoa: valueOf(row, ['ten_khoa', 'Ten khoa', 'Tên khoa', 'Khoa']),
+      chuyen_nganh: valueOf(row, ['chuyen_nganh', 'Chuyen nganh', 'Chuyên ngành']),
+      uu_tien: valueOf(row, ['uu_tien', 'Uu tien', 'Ưu tiên', 'Do uu tien', 'Độ ưu tiên']) || 2
     };
     if (!payload.ma_co_van || !payload.ho_va_ten || !payload.so_dien_thoai || !payload.email || !payload.ten_khoa || !payload.chuyen_nganh) {
-      throw badRequest('CSV CVHT cần có: Mã cố vấn, Họ và tên, Số điện thoại, Email, Khoa, Chuyên ngành, Ưu tiên');
+      throw badRequest('CSV CVHT can co: Ma co van, Ho va ten, So dien thoai, Email, Khoa, Chuyen nganh, Uu tien');
     }
 
     await transaction(async (connection) => {
       const faculty = await findFacultyByFullNameWithConnection(connection, payload.ten_khoa);
       const [existingRows] = await connection.execute('SELECT * FROM CVHT WHERE ma_co_van = ?', [payload.ma_co_van]);
       const existing = existingRows[0];
-      if (existing?.ma_tai_khoan) throw badRequest(`CVHT ${payload.ma_co_van} đã có tài khoản`);
+      if (existing?.ma_tai_khoan) throw badRequest(`CVHT ${payload.ma_co_van} da co tai khoan`);
       await assertAccountAvailable(connection, {
         ten_tai_khoan: payload.ma_co_van,
         email: payload.email
@@ -293,7 +481,7 @@ export async function importAdvisorInfoAndAccounts(file) {
     created += 1;
   }
 
-  return { message: 'Import thông tin và tài khoản CVHT thành công', created };
+  return { message: 'Import thong tin va tai khoan CVHT thanh cong', created };
 }
 
 export async function updateAccountStatus(currentUser, ma_tai_khoan, is_active) {
@@ -301,16 +489,16 @@ export async function updateAccountStatus(currentUser, ma_tai_khoan, is_active) 
     'SELECT loai_tai_khoan FROM TAI_KHOAN WHERE ma_tai_khoan = :ma_tai_khoan',
     { ma_tai_khoan }
   );
-  if (!rows[0]) throw notFound('Không tìm thấy tài khoản');
-  if (rows[0].loai_tai_khoan === 'admin') throw forbidden('Admin không thể khóa tài khoản Admin');
-  if (currentUser.ma_tai_khoan === ma_tai_khoan) throw forbidden('Không thể tự khóa tài khoản đang đăng nhập');
+  if (!rows[0]) throw notFound('Khong tim thay tai khoan');
+  if (rows[0].loai_tai_khoan === 'admin') throw forbidden('Admin khong the khoa tai khoan Admin');
+  if (currentUser.ma_tai_khoan === ma_tai_khoan) throw forbidden('Khong the tu khoa tai khoan dang dang nhap');
 
   const result = await query(
     'UPDATE TAI_KHOAN SET is_active = :is_active WHERE ma_tai_khoan = :ma_tai_khoan',
     { ma_tai_khoan, is_active: Boolean(is_active) }
   );
-  if (!result.affectedRows) throw notFound('Không tìm thấy tài khoản');
-  return { message: 'Cập nhật trạng thái tài khoản thành công' };
+  if (!result.affectedRows) throw notFound('Khong tim thay tai khoan');
+  return { message: 'Cap nhat trang thai tai khoan thanh cong' };
 }
 
 export async function listAccounts() {

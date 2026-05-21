@@ -132,6 +132,9 @@ Quy trình:
 - `POST /api/auth/login`
 - `GET /api/auth/me`
 - `POST /api/auth/change-password`
+- `POST /api/auth/forgot-password`
+- `POST /api/auth/verify-reset-otp`
+- `POST /api/auth/reset-password`
 
 ### Admin
 
