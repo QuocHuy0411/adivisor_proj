@@ -5,7 +5,7 @@ export class HttpError extends Error {
   }
 }
 
-export function notFound(message = 'Khong tim thay du lieu') {
+export function notFound(message = 'Không tìm thấy dữ liệu') {
   return new HttpError(404, message);
 }
 
@@ -13,6 +13,6 @@ export function badRequest(message = 'Du lieu khong hop le') {
   return new HttpError(400, message);
 }
 
-export function forbidden(message = 'Khong co quyen thuc hien thao tac nay') {
+export function forbidden(message = 'Không có quyền thực hiện thao tác này') {
   return new HttpError(403, message);
 }

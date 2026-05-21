@@ -80,6 +80,7 @@ CREATE TABLE IF NOT EXISTS PHAN_CONG (
   nam_hoc VARCHAR(20) NOT NULL,
   trang_thai VARCHAR(50) NOT NULL,
   ngay_phan_cong DATE NULL,
+  ten_truong_khoa VARCHAR(255) NULL,
   FOREIGN KEY (ma_lop) REFERENCES LOP(ma_lop),
   FOREIGN KEY (ma_co_van) REFERENCES CVHT(ma_co_van)
 );
@@ -91,6 +92,7 @@ CREATE TABLE IF NOT EXISTS YEU_CAU_THAY_THE (
   ly_do VARCHAR(1000) NOT NULL,
   trang_thai VARCHAR(50) NOT NULL,
   ngay_yeu_cau DATE NOT NULL,
+  ten_truong_khoa VARCHAR(255) NULL,
   FOREIGN KEY (ma_co_van) REFERENCES CVHT(ma_co_van),
   FOREIGN KEY (ma_phan_cong) REFERENCES PHAN_CONG(ma_phan_cong)
 );
@@ -110,4 +112,11 @@ CREATE TABLE IF NOT EXISTS THONG_BAO_NGUOI_NHAN (
   loai_nguoi_nhan VARCHAR(50) NOT NULL,
   ma_doi_tuong VARCHAR(50) NOT NULL,
   FOREIGN KEY (ma_thong_bao) REFERENCES THONG_BAO(ma_thong_bao)
+);
+
+CREATE TABLE IF NOT EXISTS DANG_NHAP_THAT_BAI (
+  ten_tai_khoan VARCHAR(100) NOT NULL,
+  ngay DATE NOT NULL,
+  so_lan INT NOT NULL DEFAULT 0,
+  PRIMARY KEY (ten_tai_khoan, ngay)
 );

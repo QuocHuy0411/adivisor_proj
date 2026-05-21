@@ -3,9 +3,11 @@ import { useSearchParams } from 'react-router-dom';
 import { api } from '../api/client.js';
 import AppLayout from '../components/AppLayout.jsx';
 import DataTable from '../components/DataTable.jsx';
+import Toast from '../components/Toast.jsx';
 
 const ASSIGNMENT_RECEIVED_STATUSES = ['Đang phân công', 'Đã phân công'];
-const HISTORY_STATUSES = ['Đã đóng', 'Bị từ chối'];
+const ASSIGNMENT_HISTORY_STATUSES = ['Đã đóng'];
+const REPLACEMENT_HISTORY_STATUSES = ['Đã đóng', 'Bị từ chối'];
 const sectionTitle = {
   assignment: 'Phân công',
   employees: 'Danh sách nhân viên',
@@ -30,6 +32,7 @@ export default function KhoaDashboard() {
   const [priorityBusy, setPriorityBusy] = useState('');
   const [assignmentBusy, setAssignmentBusy] = useState(false);
   const [assignmentModalOpen, setAssignmentModalOpen] = useState(false);
+  const [manualAdvisor, setManualAdvisor] = useState({});
   const [historyModal, setHistoryModal] = useState(null);
   const [replacementAdvisor, setReplacementAdvisor] = useState({});
 
@@ -73,6 +76,47 @@ export default function KhoaDashboard() {
     }
   }
 
+  async function submitAssignments() {
+    setAssignmentBusy(true);
+    try {
+      const { data } = await api.post('/khoa/assignments/submit-all');
+      setMessage(data.message);
+      setError('');
+      setAssignmentModalOpen(false);
+      await load();
+    } catch (err) {
+      setError(err.response?.data?.message || 'Không gửi danh sách phân công được');
+      setMessage('');
+    } finally {
+      setAssignmentBusy(false);
+    }
+  }
+
+  async function chooseManualAdvisor(assignment, advisorName) {
+    const selectedName = advisorName.trim();
+    if (!selectedName || selectedName === (assignment.ten_co_van || '')) return;
+    const advisor = advisors.find((item) => item.ho_va_ten === selectedName);
+    if (!advisor) {
+      setError('Vui lòng chọn cố vấn học tập có trong danh sách');
+      setMessage('');
+      return;
+    }
+    setAssignmentBusy(true);
+    try {
+      const { data } = await api.post(`/khoa/assignments/${assignment.ma_phan_cong}/assign`, {
+        ma_co_van: advisor.ma_co_van
+      });
+      setMessage(data.message);
+      setError('');
+      await load();
+    } catch (err) {
+      setError(err.response?.data?.message || 'Không chọn cố vấn học tập được');
+      setMessage('');
+    } finally {
+      setAssignmentBusy(false);
+    }
+  }
+
   async function updatePriority(ma_co_van, uu_tien) {
     setPriorityBusy(ma_co_van);
     try {
@@ -93,12 +137,24 @@ export default function KhoaDashboard() {
   ));
   const view = searchParams.get('view');
   const activeSection = ['employees', 'history'].includes(view) ? view : 'assignment';
-  const assignmentHistory = assignments.filter((assignment) => HISTORY_STATUSES.includes(assignment.trang_thai));
-  const replacementHistory = requests.filter((request) => HISTORY_STATUSES.includes(request.trang_thai));
-  const pendingReplacementRequests = requests.filter((request) => !HISTORY_STATUSES.includes(request.trang_thai));
+  const assignmentHistory = assignments.filter((assignment) => ASSIGNMENT_HISTORY_STATUSES.includes(assignment.trang_thai));
+  const assignmentHistoryGroups = Object.values(assignmentHistory.reduce((groups, assignment) => {
+    const key = `${assignment.nam_hoc}-${assignment.ten_truong_khoa || ''}`;
+    if (!groups[key]) {
+      groups[key] = {
+        id: key,
+        nam_hoc: assignment.nam_hoc,
+        ten_truong_khoa: assignment.ten_truong_khoa || '-'
+      };
+    }
+    return groups;
+  }, {}));
+  const replacementHistory = requests.filter((request) => REPLACEMENT_HISTORY_STATUSES.includes(request.trang_thai));
+  const pendingReplacementRequests = requests.filter((request) => !REPLACEMENT_HISTORY_STATUSES.includes(request.trang_thai));
   const historyDetailRows = historyModal
     ? assignmentHistory.filter((assignment) => (
-      assignment.nam_hoc === historyModal.nam_hoc && assignment.trang_thai === historyModal.trang_thai
+      assignment.nam_hoc === historyModal.nam_hoc
+        && (assignment.ten_truong_khoa || '-') === historyModal.ten_truong_khoa
     ))
     : [];
   const hasPendingAssignment = receivedAssignments.some((assignment) => assignment.trang_thai === 'Đang phân công');
@@ -106,8 +162,7 @@ export default function KhoaDashboard() {
 
   return (
     <AppLayout title={sectionTitle[activeSection]}>
-      {message ? <div className="success">{message}</div> : null}
-      {error ? <div className="error">{error}</div> : null}
+      <Toast message={error || message} type={error ? 'error' : 'success'} onClose={() => { setMessage(''); setError(''); }} />
 
       {activeSection === 'assignment' ? (
         <>
@@ -169,11 +224,9 @@ export default function KhoaDashboard() {
           <section className="panel">
             <h2>Lịch sử phân công</h2>
             <DataTable columns={[
-              { key: 'ma_phan_cong', label: 'Mã phân công' },
-              { key: 'ten_truong_khoa', label: 'Tên trưởng Khoa', render: (row) => row.ten_truong_khoa || '-' },
               { key: 'nam_hoc', label: 'Năm học' },
-              { key: 'trang_thai', label: 'Trạng thái' }
-            ]} rows={assignmentHistory} actions={(row) => (
+              { key: 'ten_truong_khoa', label: 'Tên trưởng Khoa' }
+            ]} rows={assignmentHistoryGroups} actionLabel="" actions={(row) => (
               <div className="icon-actions">
                 <IconButton icon="🔎" label="Xem danh sách lớp" onClick={() => setHistoryModal(row)} />
               </div>
@@ -231,16 +284,49 @@ export default function KhoaDashboard() {
                   disabled={!hasPendingAssignment || assignmentBusy}
                   onClick={autoAssign}
                 >
-                  {assignmentBusy ? 'Đang phân công...' : 'Phân công tự động và gửi CTSV'}
+                  {assignmentBusy ? 'Đang xử lý...' : 'Tự động'}
+                </button>
+                <button
+                  type="button"
+                  disabled={!hasPendingAssignment || assignmentBusy}
+                  onClick={submitAssignments}
+                >
+                  Gửi
                 </button>
                 <button className="secondary" type="button" onClick={() => setAssignmentModalOpen(false)}>Đóng</button>
               </div>
             </header>
+            <datalist id="advisor-options">
+              {advisors.map((advisor) => (
+                <option
+                  key={advisor.ma_co_van}
+                  value={advisor.ho_va_ten}
+                  label={`Độ ưu tiên ${advisor.uu_tien}`}
+                />
+              ))}
+            </datalist>
             <DataTable columns={[
               { key: 'ma_phan_cong', label: 'Mã' },
               { key: 'ten_lop', label: 'Lớp' },
               { key: 'chuyen_nganh', label: 'Chuyên ngành' },
-              { key: 'ten_co_van', label: 'CVHT', render: (row) => row.ten_co_van || '-' },
+              {
+                key: 'ten_co_van',
+                label: 'Cố vấn học tập',
+                render: (row) => row.trang_thai === 'Đang phân công' ? (
+                  <input
+                    className="table-input"
+                    list="advisor-options"
+                    value={manualAdvisor[row.ma_phan_cong] ?? row.ten_co_van ?? ''}
+                    placeholder="Chọn cố vấn học tập"
+                    disabled={assignmentBusy}
+                    onChange={(event) => setManualAdvisor({
+                      ...manualAdvisor,
+                      [row.ma_phan_cong]: event.target.value
+                    })}
+                    onBlur={(event) => chooseManualAdvisor(row, event.target.value)}
+                  />
+                ) : (row.ten_co_van || '-')
+              },
               { key: 'trang_thai', label: 'Trạng thái' }
             ]} rows={receivedAssignments} />
           </section>
@@ -258,8 +344,8 @@ export default function KhoaDashboard() {
               { key: 'ma_phan_cong', label: 'Mã phân công' },
               { key: 'ten_lop', label: 'Lớp' },
               { key: 'chuyen_nganh', label: 'Chuyên ngành' },
-              { key: 'ten_co_van', label: 'CVHT', render: (row) => row.ten_co_van || '-' },
-              { key: 'trang_thai', label: 'Trạng thái' }
+              { key: 'so_luong_sv', label: 'Sĩ số' },
+              { key: 'ten_co_van', label: 'Cố vấn học tập', render: (row) => row.ten_co_van || '-' }
             ]} rows={historyDetailRows} />
           </section>
         </div>

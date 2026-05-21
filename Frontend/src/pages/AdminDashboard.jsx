@@ -397,6 +397,7 @@ export default function AdminDashboard() {
               columns={[
                 { key: 'ma_co_van', label: 'Mã cố vấn' },
                 { key: 'ho_va_ten', label: 'Họ và tên' },
+                { key: 'email', label: 'Email' },
                 { key: 'so_dien_thoai', label: 'Số điện thoại' },
                 { key: 'chuyen_nganh', label: 'Chuyên ngành' },
                 { key: 'uu_tien', label: 'Ưu tiên' }

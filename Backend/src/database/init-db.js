@@ -67,6 +67,18 @@ async function seedAccounts(connection) {
   );
 }
 
+async function addColumnIfMissing(connection, tableName, columnName, definition) {
+  const [rows] = await connection.query(
+    `SELECT COUNT(*) AS total
+     FROM INFORMATION_SCHEMA.COLUMNS
+     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?`,
+    [tableName, columnName]
+  );
+  if (Number(rows[0].total) === 0) {
+    await connection.query(`ALTER TABLE ${tableName} ADD COLUMN ${columnName} ${definition}`);
+  }
+}
+
 async function main() {
   const bootstrap = await mysql.createConnection({
     host: env.db.host,
@@ -87,6 +99,8 @@ async function main() {
 
   await runSqlFile(bootstrap, 'schema.sql');
   await bootstrap.query('ALTER TABLE CVHT MODIFY ma_tai_khoan VARCHAR(50) NULL');
+  await addColumnIfMissing(bootstrap, 'PHAN_CONG', 'ten_truong_khoa', 'VARCHAR(255) NULL');
+  await addColumnIfMissing(bootstrap, 'YEU_CAU_THAY_THE', 'ten_truong_khoa', 'VARCHAR(255) NULL');
   await runSqlFile(bootstrap, 'seed.sql');
   await seedAccounts(bootstrap);
   await bootstrap.end();

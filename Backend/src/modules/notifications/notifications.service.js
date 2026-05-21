@@ -36,9 +36,9 @@ export async function listNotifications(user) {
 }
 
 export async function createNotification(user, payload) {
-  if (user.loai_tai_khoan !== 'ctsv') throw badRequest('Chi CTSV duoc gui thong bao thu cong');
+  if (user.loai_tai_khoan !== 'ctsv') throw badRequest('Chỉ Phòng Công tác Sinh viên được gửi thông báo thủ công');
   if (!payload.tieu_de || !payload.noi_dung || !Array.isArray(payload.recipients)) {
-    throw badRequest('Thieu tieu de, noi dung hoac danh sach nguoi nhan');
+    throw badRequest('Thiếu tiêu đề, nội dung hoặc danh sách người nhận');
   }
   return transaction(async (connection) => {
     const ma_thong_bao = makeId('TB');
@@ -54,6 +54,6 @@ export async function createNotification(user, payload) {
         [makeId('NN'), ma_thong_bao, recipient.loai_nguoi_nhan, recipient.ma_doi_tuong]
       );
     }
-    return { message: 'Gui thong bao thanh cong', ma_thong_bao };
+    return { message: 'Gửi thông báo thành công', ma_thong_bao };
   });
 }

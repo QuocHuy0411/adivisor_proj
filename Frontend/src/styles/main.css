@@ -51,6 +51,11 @@ input, select, textarea {
   width: 100%;
 }
 
+.table-input {
+  max-width: 280px;
+  min-width: 220px;
+}
+
 .auth-page {
   align-items: center;
   background: linear-gradient(135deg, #e8f3ef 0%, #f6f7fb 58%, #eef2ff 100%);
@@ -224,6 +229,18 @@ nav a:hover {
   flex-wrap: wrap;
   gap: 10px;
   justify-content: flex-end;
+}
+
+.panel-footer-actions {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  margin-top: 14px;
+}
+
+.panel-footer-actions select {
+  max-width: 110px;
 }
 
 .user-menu {
@@ -476,6 +493,15 @@ th {
   color: #475569;
   font-size: 13px;
   text-transform: uppercase;
+}
+
+.filter-row th {
+  padding-top: 0;
+}
+
+.filter-row input {
+  min-height: 32px;
+  padding: 6px 8px;
 }
 
 .actions {

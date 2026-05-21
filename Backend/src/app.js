@@ -31,7 +31,7 @@ app.use('/api/sinhvien', sinhvienRoutes);
 app.use('/api/notifications', notificationRoutes);
 
 app.use((req, res) => {
-  res.status(404).json({ message: 'Endpoint khong ton tai' });
+  res.status(404).json({ message: 'Endpoint không tồn tại' });
 });
 
 app.use(errorHandler);

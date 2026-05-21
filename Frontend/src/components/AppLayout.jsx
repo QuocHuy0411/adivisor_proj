@@ -16,6 +16,12 @@ const roleNavItems = {
     { key: 'assignment', label: 'Phân công', to: '/?view=assignment' },
     { key: 'employees', label: 'Danh sách nhân viên', to: '/?view=employees' },
     { key: 'history', label: 'Lịch sử phân công', to: '/?view=history' }
+  ],
+  ctsv: [
+    { key: 'create', label: 'Tạo lớp và sinh viên', to: '/?view=create' },
+    { key: 'students', label: 'Danh sách sinh viên', to: '/?view=students' },
+    { key: 'assignments', label: 'Danh sách phân công cố vấn', to: '/?view=assignments' },
+    { key: 'history', label: 'Lịch sử phân công', to: '/?view=history' }
   ]
 };
 
@@ -41,6 +47,7 @@ export default function AppLayout({ title, children, navItems = [], activeNav, o
     if (activeNav) return activeNav === item.key;
     const params = new URLSearchParams(location.search);
     if (item.key === 'notifications') return location.pathname === '/notifications';
+    if (user?.loai_tai_khoan === 'ctsv') return location.pathname === '/' && (params.get('view') || 'create') === item.key;
     if (item.key === 'history') return location.pathname === '/' && params.get('view') === 'history';
     if (item.key === 'employees') return location.pathname === '/' && params.get('view') === 'employees';
     if (item.key === 'assignment') return location.pathname === '/' && !['employees', 'history'].includes(params.get('view'));

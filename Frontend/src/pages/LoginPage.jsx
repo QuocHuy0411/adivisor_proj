@@ -2,23 +2,28 @@ import { useState } from 'react';
 import { Link, Navigate, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 
+const LOGIN_ERROR_KEY = 'adivisor_login_error';
+
 export default function LoginPage() {
   const { user, login } = useAuth();
   const navigate = useNavigate();
   const [form, setForm] = useState({ ten_tai_khoan: '', mat_khau: '' });
-  const [error, setError] = useState('');
+  const [error, setError] = useState(() => sessionStorage.getItem(LOGIN_ERROR_KEY) || '');
 
   if (user?.da_doi_mk) return <Navigate to="/" replace />;
   if (user && !user.da_doi_mk) return <Navigate to="/change-password" replace />;
 
   async function submit(event) {
     event.preventDefault();
-    setError('');
     try {
       const nextUser = await login(form);
+      sessionStorage.removeItem(LOGIN_ERROR_KEY);
+      setError('');
       navigate(nextUser.da_doi_mk ? '/' : '/change-password');
     } catch (err) {
-      setError(err.response?.data?.message || 'Đăng nhập thất bại');
+      const nextError = err.response?.data?.message || 'Đăng nhập thất bại';
+      sessionStorage.setItem(LOGIN_ERROR_KEY, nextError);
+      setError(nextError);
     }
   }
 

@@ -9,12 +9,12 @@ export async function myAdvisor(user) {
      FROM SINH_VIEN sv
      JOIN LOP l ON l.ma_lop = sv.ma_lop
      LEFT JOIN CVHT cv ON cv.ma_co_van = l.ma_co_van
-     LEFT JOIN TAI_KHOAN tk ON tk.ma_tai_khoan = cv.ma_tai_khoan
+     LEFT JOIN TAI_KHOAN tk ON tk.ma_tai_khoan = cv.ma_tai_khoan AND tk.is_active = true
      JOIN KHOA k ON k.ma_khoa = l.ma_khoa
      WHERE sv.ma_sinh_vien = :ma_sinh_vien`,
     { ma_sinh_vien: user.ma_sinh_vien }
   );
-  if (!rows[0]) throw notFound('Khong tim thay thong tin sinh vien');
+  if (!rows[0]) throw notFound('Không tìm thấy thông tin sinh viên');
   return rows[0];
 }
 
@@ -22,12 +22,12 @@ export async function myProfile(user) {
   const rows = await query(
     `SELECT sv.*, tk.email, l.ten_lop, k.ten_khoa
      FROM SINH_VIEN sv
-     JOIN TAI_KHOAN tk ON tk.ma_tai_khoan = sv.ma_tai_khoan
+     JOIN TAI_KHOAN tk ON tk.ma_tai_khoan = sv.ma_tai_khoan AND tk.is_active = true
      JOIN LOP l ON l.ma_lop = sv.ma_lop
      JOIN KHOA k ON k.ma_khoa = l.ma_khoa
      WHERE sv.ma_sinh_vien = :ma_sinh_vien`,
     { ma_sinh_vien: user.ma_sinh_vien }
   );
-  if (!rows[0]) throw notFound('Khong tim thay thong tin sinh vien');
+  if (!rows[0]) throw notFound('Không tìm thấy thông tin sinh viên');
   return rows[0];
 }

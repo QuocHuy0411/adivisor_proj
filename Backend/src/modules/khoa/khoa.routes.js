@@ -15,6 +15,9 @@ router.patch('/advisors/:id/priority', asyncHandler(async (req, res) => {
 router.post('/assignments/auto-assign', asyncHandler(async (req, res) => {
   res.json(await service.autoAssignAdvisors(req.user));
 }));
+router.post('/assignments/submit-all', asyncHandler(async (req, res) => {
+  res.json(await service.submitAllAssignments(req.user));
+}));
 router.post('/assignments/:id/assign', asyncHandler(async (req, res) => {
   res.json(await service.assignAdvisor(req.user, req.params.id, req.body.ma_co_van));
 }));

@@ -19,25 +19,25 @@ export async function classStudents(user, ma_lop) {
     ma_lop,
     ma_co_van: user.ma_co_van
   });
-  if (!classes[0]) throw forbidden('CVHT chi xem sinh vien lop minh phu trach');
+  if (!classes[0]) throw forbidden('Cố vấn học tập chỉ xem sinh viên lớp mình phụ trách');
   return query(
-    `SELECT sv.ma_sinh_vien, sv.ho_va_ten, sv.so_dien_thoai, tk.email
+    `SELECT sv.ma_sinh_vien, sv.ho_va_ten, sv.so_dien_thoai, tk.email, tk.is_active
      FROM SINH_VIEN sv
-     JOIN TAI_KHOAN tk ON tk.ma_tai_khoan = sv.ma_tai_khoan
+     JOIN TAI_KHOAN tk ON tk.ma_tai_khoan = sv.ma_tai_khoan AND tk.is_active = true
      WHERE sv.ma_lop = :ma_lop
-     ORDER BY sv.ho_va_ten`,
+     ORDER BY tk.is_active DESC, sv.ma_sinh_vien ASC`,
     { ma_lop }
   );
 }
 
 export async function createReplacementRequest(user, payload) {
-  if (!payload.ma_lop || !payload.ly_do) throw badRequest('Can chon lop va nhap ly do');
+  if (!payload.ma_lop || !payload.ly_do) throw badRequest('Cần chọn lớp và nhập lý do');
   const rows = await query('SELECT * FROM LOP WHERE ma_lop = :ma_lop AND ma_co_van = :ma_co_van', {
     ma_lop: payload.ma_lop,
     ma_co_van: user.ma_co_van
   });
   const lop = rows[0];
-  if (!lop) throw forbidden('Chi gui yeu cau cho lop dang phu trach');
+  if (!lop) throw forbidden('Chỉ gửi yêu cầu cho lớp đang phụ trách');
 
   return transaction(async (connection) => {
     const ma_phan_cong = makeId('PC');
@@ -53,17 +53,19 @@ export async function createReplacementRequest(user, payload) {
        VALUES (?, ?, ?, ?, ?, CURDATE())`,
       [ma_yeu_cau, user.ma_co_van, ma_phan_cong, payload.ly_do, YEU_CAU_THAY_THE.CHO_DUYET]
     );
-    return { message: 'Da gui yeu cau dung co van len Khoa', ma_yeu_cau };
+    return { message: 'Đã gửi yêu cầu dừng cố vấn lên Khoa', ma_yeu_cau };
   });
 }
 
 export async function myReplacementRequests(user) {
   return query(
-    `SELECT yc.*, pc.ma_lop, pc.ma_co_van AS ma_co_van_moi, l.ten_lop, moi.ho_va_ten AS ten_co_van_moi
+    `SELECT yc.*, pc.ma_lop, pc.ma_co_van AS ma_co_van_moi, l.ten_lop,
+            CASE WHEN moi_tk.ma_tai_khoan IS NULL THEN NULL ELSE moi.ho_va_ten END AS ten_co_van_moi
      FROM YEU_CAU_THAY_THE yc
      JOIN PHAN_CONG pc ON pc.ma_phan_cong = yc.ma_phan_cong
      JOIN LOP l ON l.ma_lop = pc.ma_lop
      LEFT JOIN CVHT moi ON moi.ma_co_van = pc.ma_co_van
+     LEFT JOIN TAI_KHOAN moi_tk ON moi_tk.ma_tai_khoan = moi.ma_tai_khoan AND moi_tk.is_active = true
      WHERE yc.ma_co_van = :ma_co_van
      ORDER BY yc.ngay_yeu_cau DESC`,
     { ma_co_van: user.ma_co_van }
@@ -74,11 +76,11 @@ export async function advisorInfo(user) {
   const rows = await query(
     `SELECT cv.*, tk.email, k.ten_khoa
      FROM CVHT cv
-     JOIN TAI_KHOAN tk ON tk.ma_tai_khoan = cv.ma_tai_khoan
+     JOIN TAI_KHOAN tk ON tk.ma_tai_khoan = cv.ma_tai_khoan AND tk.is_active = true
      JOIN KHOA k ON k.ma_khoa = cv.ma_khoa
      WHERE cv.ma_co_van = :ma_co_van`,
     { ma_co_van: user.ma_co_van }
   );
-  if (!rows[0]) throw notFound('Khong tim thay CVHT');
+  if (!rows[0]) throw notFound('Không tìm thấy cố vấn học tập');
   return rows[0];
 }
