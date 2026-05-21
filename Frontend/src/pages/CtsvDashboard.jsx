@@ -8,6 +8,10 @@ export default function CtsvDashboard() {
   const [assignments, setAssignments] = useState([]);
   const [requests, setRequests] = useState([]);
   const [message, setMessage] = useState('');
+  const [error, setError] = useState('');
+  const [classActionBusy, setClassActionBusy] = useState('');
+  const [assignmentActionBusy, setAssignmentActionBusy] = useState('');
+  const [hideAssignmentRowActions, setHideAssignmentRowActions] = useState(false);
   const [classForm, setClassForm] = useState({ ma_lop: '', ten_lop: '', ma_khoa: 'CNTT', chuyen_nganh: '', nam_hoc: '2026-2027', so_luong_sv: 0 });
 
   async function load() {
@@ -27,25 +31,53 @@ export default function CtsvDashboard() {
     event.preventDefault();
     const { data } = await api.post('/ctsv/classes', classForm);
     setMessage(data.message);
+    setError('');
     setClassForm({ ma_lop: '', ten_lop: '', ma_khoa: 'CNTT', chuyen_nganh: '', nam_hoc: '2026-2027', so_luong_sv: 0 });
-    await load();
-  }
-
-  async function createAssignment(row) {
-    const { data } = await api.post('/ctsv/assignments', { ma_lop: row.ma_lop, nam_hoc: row.nam_hoc });
-    setMessage(data.message);
     await load();
   }
 
   async function action(url) {
     const { data } = await api.post(url);
     setMessage(data.message);
+    setError('');
     await load();
+  }
+
+  async function classListAction(url, busyKey) {
+    setClassActionBusy(busyKey);
+    try {
+      const { data } = await api.post(url);
+      setMessage(data.message);
+      setError('');
+      setHideAssignmentRowActions(true);
+      await load();
+    } catch (err) {
+      setError(err.response?.data?.message || 'Không thực hiện được thao tác');
+      setMessage('');
+    } finally {
+      setClassActionBusy('');
+    }
+  }
+
+  async function assignmentBulkAction(url, busyKey) {
+    setAssignmentActionBusy(busyKey);
+    try {
+      const { data } = await api.post(url);
+      setMessage(data.message);
+      setError('');
+      await load();
+    } catch (err) {
+      setError(err.response?.data?.message || 'Không thực hiện được thao tác');
+      setMessage('');
+    } finally {
+      setAssignmentActionBusy('');
+    }
   }
 
   return (
     <AppLayout title="Phòng Công tác Sinh viên">
       {message ? <div className="success">{message}</div> : null}
+      {error ? <div className="error">{error}</div> : null}
       <form className="panel form-row" onSubmit={createClass}>
         <input placeholder="Mã lớp" value={classForm.ma_lop} onChange={(e) => setClassForm({ ...classForm, ma_lop: e.target.value })} />
         <input placeholder="Tên lớp" value={classForm.ten_lop} onChange={(e) => setClassForm({ ...classForm, ten_lop: e.target.value })} />
@@ -58,7 +90,26 @@ export default function CtsvDashboard() {
       </form>
 
       <section className="panel">
-        <h2>Lớp</h2>
+        <div className="panel-header">
+          <h2>Lớp</h2>
+          <div className="panel-actions">
+            <button
+              className="secondary"
+              disabled={Boolean(classActionBusy)}
+              type="button"
+              onClick={() => classListAction('/ctsv/classes/reset-advisors', 'reset')}
+            >
+              {classActionBusy === 'reset' ? 'Đang làm mới...' : 'Làm mới'}
+            </button>
+            <button
+              disabled={Boolean(classActionBusy)}
+              type="button"
+              onClick={() => classListAction('/ctsv/classes/send-to-faculties', 'send')}
+            >
+              {classActionBusy === 'send' ? 'Đang gửi...' : 'Gửi đến Khoa'}
+            </button>
+          </div>
+        </div>
         <DataTable columns={[
           { key: 'ma_lop', label: 'Mã lớp' },
           { key: 'ten_lop', label: 'Tên lớp' },
@@ -66,18 +117,37 @@ export default function CtsvDashboard() {
           { key: 'nam_hoc', label: 'Năm học' },
           { key: 'ten_co_van', label: 'CVHT' },
           { key: 'trang_thai_lop', label: 'Trạng thái' }
-        ]} rows={classes} actions={(row) => <button onClick={() => createAssignment(row)}>Lập DS</button>} />
+        ]} rows={classes} />
       </section>
 
       <section className="panel">
-        <h2>Danh sách phân công</h2>
+        <div className="panel-header">
+          <h2>Danh sách phân công</h2>
+          <div className="panel-actions">
+            <button
+              disabled={Boolean(assignmentActionBusy)}
+              type="button"
+              onClick={() => assignmentBulkAction('/ctsv/assignments/approve-all', 'approve')}
+            >
+              {assignmentActionBusy === 'approve' ? 'Đang duyệt...' : 'Duyệt tất cả'}
+            </button>
+            <button
+              className="secondary"
+              disabled={Boolean(assignmentActionBusy)}
+              type="button"
+              onClick={() => assignmentBulkAction('/ctsv/assignments/reject-all', 'reject')}
+            >
+              {assignmentActionBusy === 'reject' ? 'Đang từ chối...' : 'Từ chối tất cả'}
+            </button>
+          </div>
+        </div>
         <DataTable columns={[
           { key: 'ma_phan_cong', label: 'Mã' },
           { key: 'ten_lop', label: 'Lớp' },
           { key: 'ma_khoa', label: 'Khoa' },
           { key: 'ten_co_van', label: 'CVHT' },
           { key: 'trang_thai', label: 'Trạng thái' }
-        ]} rows={assignments} actions={(row) => (
+        ]} rows={assignments} actions={hideAssignmentRowActions ? null : (row) => (
           <>
             {row.trang_thai === 'Chờ phân công' ? <button onClick={() => action(`/ctsv/assignments/${row.ma_phan_cong}/send`)}>Gửi Khoa</button> : null}
             {row.trang_thai === 'Đã phân công' ? <button onClick={() => action(`/ctsv/assignments/${row.ma_phan_cong}/approve`)}>Duyệt</button> : null}

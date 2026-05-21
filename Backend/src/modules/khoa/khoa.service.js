@@ -31,10 +31,12 @@ async function assertAdvisorAssignable(ma_khoa, ma_co_van) {
 
 export async function listAssignments(user) {
   return query(
-    `SELECT pc.*, l.ten_lop, l.ma_khoa, l.chuyen_nganh, l.so_luong_sv, cv.ho_va_ten AS ten_co_van
+    `SELECT pc.*, l.ten_lop, l.ma_khoa, l.chuyen_nganh, l.so_luong_sv,
+            cv.ho_va_ten AS ten_co_van, tk.ho_va_ten AS ten_truong_khoa
      FROM PHAN_CONG pc
      JOIN LOP l ON l.ma_lop = pc.ma_lop
      LEFT JOIN CVHT cv ON cv.ma_co_van = pc.ma_co_van
+     LEFT JOIN TRUONG_KHOA tk ON tk.ma_khoa = l.ma_khoa
      WHERE l.ma_khoa = :ma_khoa
      ORDER BY pc.nam_hoc DESC, pc.trang_thai, l.ten_lop`,
     { ma_khoa: user.ma_khoa }
@@ -163,13 +165,15 @@ export async function submitAssignment(user, ma_phan_cong) {
 
 export async function listReplacementRequests(user) {
   return query(
-    `SELECT yc.*, pc.ma_lop, pc.ma_co_van AS ma_co_van_moi, l.ten_lop, l.ma_khoa,
-            cu.ho_va_ten AS ten_co_van_cu, moi.ho_va_ten AS ten_co_van_moi
+    `SELECT yc.*, pc.ma_lop, pc.nam_hoc, pc.ma_co_van AS ma_co_van_moi, l.ten_lop, l.ma_khoa,
+            cu.ho_va_ten AS ten_co_van_cu, moi.ho_va_ten AS ten_co_van_moi,
+            tk.ho_va_ten AS ten_truong_khoa
      FROM YEU_CAU_THAY_THE yc
      JOIN PHAN_CONG pc ON pc.ma_phan_cong = yc.ma_phan_cong
      JOIN LOP l ON l.ma_lop = pc.ma_lop
      JOIN CVHT cu ON cu.ma_co_van = yc.ma_co_van
      LEFT JOIN CVHT moi ON moi.ma_co_van = pc.ma_co_van
+     LEFT JOIN TRUONG_KHOA tk ON tk.ma_khoa = l.ma_khoa
      WHERE l.ma_khoa = :ma_khoa
      ORDER BY yc.ngay_yeu_cau DESC`,
     { ma_khoa: user.ma_khoa }

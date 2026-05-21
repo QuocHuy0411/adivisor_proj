@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 
 const roleLabel = {
@@ -10,11 +10,22 @@ const roleLabel = {
   sinhvien: 'Sinh viên'
 };
 
+const roleNavItems = {
+  khoa: [
+    { key: 'notifications', label: 'Thông báo', to: '/notifications' },
+    { key: 'assignment', label: 'Phân công', to: '/?view=assignment' },
+    { key: 'employees', label: 'Danh sách nhân viên', to: '/?view=employees' },
+    { key: 'history', label: 'Lịch sử phân công', to: '/?view=history' }
+  ]
+};
+
 export default function AppLayout({ title, children, navItems = [], activeNav, onNavChange }) {
   const { user, logout } = useAuth();
+  const location = useLocation();
   const navigate = useNavigate();
   const [menuOpen, setMenuOpen] = useState(false);
   const isAdmin = user?.loai_tai_khoan === 'admin';
+  const currentNavItems = navItems.length ? navItems : (roleNavItems[user?.loai_tai_khoan] || []);
 
   function handleLogout() {
     logout();
@@ -24,6 +35,16 @@ export default function AppLayout({ title, children, navItems = [], activeNav, o
   function goChangePassword() {
     setMenuOpen(false);
     navigate('/change-password');
+  }
+
+  function isNavActive(item) {
+    if (activeNav) return activeNav === item.key;
+    const params = new URLSearchParams(location.search);
+    if (item.key === 'notifications') return location.pathname === '/notifications';
+    if (item.key === 'history') return location.pathname === '/' && params.get('view') === 'history';
+    if (item.key === 'employees') return location.pathname === '/' && params.get('view') === 'employees';
+    if (item.key === 'assignment') return location.pathname === '/' && !['employees', 'history'].includes(params.get('view'));
+    return false;
   }
 
   return (
@@ -65,9 +86,28 @@ export default function AppLayout({ title, children, navItems = [], activeNav, o
         ) : (
           <>
             <Link className="brand" to="/">Adivisor</Link>
-            <nav>
-              <Link to="/">Tổng quan</Link>
-              <Link to="/notifications">Thông báo</Link>
+            <nav className={currentNavItems.length ? 'sidebar-action-nav' : undefined}>
+              {currentNavItems.length ? currentNavItems.map((item) => (
+                item.to ? (
+                  <Link className={isNavActive(item) ? 'sidebar-nav-item active' : 'sidebar-nav-item'} key={item.key} to={item.to}>
+                    {item.label}
+                  </Link>
+                ) : (
+                  <button
+                    className={isNavActive(item) ? 'sidebar-nav-item active' : 'sidebar-nav-item'}
+                    key={item.key}
+                    type="button"
+                    onClick={() => onNavChange?.(item.key)}
+                  >
+                    {item.label}
+                  </button>
+                )
+              )) : (
+                <>
+                  <Link to="/">Tổng quan</Link>
+                  <Link to="/notifications">Thông báo</Link>
+                </>
+              )}
             </nav>
           </>
         )}

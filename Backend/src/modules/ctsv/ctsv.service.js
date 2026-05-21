@@ -162,6 +162,78 @@ export async function sendAssignmentToFaculty(id) {
   return { message: 'Da gui yeu cau phan cong cho Khoa' };
 }
 
+export async function resetClassAdvisors() {
+  return transaction(async (connection) => {
+    const [classResult] = await connection.execute(
+      'UPDATE LOP SET ma_co_van = NULL, trang_thai_lop = ?',
+      [PHAN_CONG.CHO_PHAN_CONG]
+    );
+    await connection.execute(
+      `UPDATE PHAN_CONG
+       SET ma_co_van = NULL, trang_thai = ?, ngay_phan_cong = NULL
+       WHERE trang_thai IN (?, ?, ?)`,
+      [PHAN_CONG.CHO_PHAN_CONG, PHAN_CONG.CHO_PHAN_CONG, PHAN_CONG.DANG_PHAN_CONG, PHAN_CONG.DA_PHAN_CONG]
+    );
+    return { message: `Da lam moi ${classResult.affectedRows} lop can phan cong` };
+  });
+}
+
+export async function sendClassRequestsToFaculties() {
+  return transaction(async (connection) => {
+    const [classes] = await connection.execute(
+      `SELECT l.ma_lop, l.nam_hoc
+       FROM LOP l
+       WHERE l.trang_thai_lop = ? AND l.ma_co_van IS NULL
+       ORDER BY l.ma_khoa, l.ten_lop`,
+      [PHAN_CONG.CHO_PHAN_CONG]
+    );
+    if (!classes.length) throw badRequest('Khong co lop cho phan cong de gui Khoa');
+
+    let sent = 0;
+    for (const row of classes) {
+      const [existingRows] = await connection.execute(
+        `SELECT ma_phan_cong, trang_thai
+         FROM PHAN_CONG
+         WHERE ma_lop = ? AND nam_hoc = ? AND trang_thai IN (?, ?, ?)
+         ORDER BY FIELD(trang_thai, ?, ?, ?)
+         LIMIT 1`,
+        [
+          row.ma_lop,
+          row.nam_hoc,
+          PHAN_CONG.CHO_PHAN_CONG,
+          PHAN_CONG.DANG_PHAN_CONG,
+          PHAN_CONG.DA_PHAN_CONG,
+          PHAN_CONG.CHO_PHAN_CONG,
+          PHAN_CONG.DANG_PHAN_CONG,
+          PHAN_CONG.DA_PHAN_CONG
+        ]
+      );
+      const existing = existingRows[0];
+      if (existing?.trang_thai === PHAN_CONG.DA_PHAN_CONG) continue;
+      if (existing) {
+        if (existing.trang_thai === PHAN_CONG.CHO_PHAN_CONG) {
+          await connection.execute(
+            'UPDATE PHAN_CONG SET trang_thai = ? WHERE ma_phan_cong = ?',
+            [PHAN_CONG.DANG_PHAN_CONG, existing.ma_phan_cong]
+          );
+          sent += 1;
+        }
+        continue;
+      }
+
+      await connection.execute(
+        `INSERT INTO PHAN_CONG (ma_phan_cong, ma_lop, ma_co_van, nam_hoc, trang_thai, ngay_phan_cong)
+         VALUES (?, ?, NULL, ?, ?, NULL)`,
+        [makeId('PC'), row.ma_lop, row.nam_hoc, PHAN_CONG.DANG_PHAN_CONG]
+      );
+      sent += 1;
+    }
+
+    if (!sent) throw badRequest('Cac lop cho phan cong da duoc gui den Khoa');
+    return { message: `Da gui ${sent} yeu cau phan cong den cac Khoa` };
+  });
+}
+
 async function createNotification(connection, ma_nhan_vien, { tieu_de, noi_dung, recipients }) {
   const ma_thong_bao = makeId('TB');
   await connection.execute(
@@ -189,39 +261,43 @@ async function assertAdvisorCapacity(connection, ma_co_van, ma_lop) {
   }
 }
 
+async function approveAssignmentWithConnection(connection, user, id) {
+  const [rows] = await connection.execute(
+    `SELECT pc.*, l.ma_khoa, l.ten_lop, cv.ho_va_ten AS ten_co_van
+     FROM PHAN_CONG pc
+     JOIN LOP l ON l.ma_lop = pc.ma_lop
+     LEFT JOIN CVHT cv ON cv.ma_co_van = pc.ma_co_van
+     WHERE pc.ma_phan_cong = ?`,
+    [id]
+  );
+  const assignment = rows[0];
+  if (!assignment) throw notFound('Khong tim thay phan cong');
+  assertTransition('phanCong', assignment.trang_thai, PHAN_CONG.DA_DONG);
+  if (!assignment.ma_co_van) throw badRequest('Khoa chua chon CVHT');
+  await assertAdvisorCapacity(connection, assignment.ma_co_van, assignment.ma_lop);
+
+  await connection.execute(
+    'UPDATE LOP SET ma_co_van = ?, trang_thai_lop = ? WHERE ma_lop = ?',
+    [assignment.ma_co_van, PHAN_CONG.DA_DONG, assignment.ma_lop]
+  );
+  await connection.execute(
+    'UPDATE PHAN_CONG SET trang_thai = ?, ngay_phan_cong = CURDATE() WHERE ma_phan_cong = ?',
+    [PHAN_CONG.DA_DONG, id]
+  );
+  await createNotification(connection, user.ma_nhan_vien, {
+    tieu_de: 'Thong bao phan cong CVHT',
+    noi_dung: `Lop ${assignment.ten_lop} da duoc phan cong CVHT ${assignment.ten_co_van}.`,
+    recipients: [
+      { loai_nguoi_nhan: 'lop', ma_doi_tuong: assignment.ma_lop },
+      { loai_nguoi_nhan: 'khoa', ma_doi_tuong: assignment.ma_khoa },
+      { loai_nguoi_nhan: 'covan', ma_doi_tuong: assignment.ma_co_van }
+    ]
+  });
+}
+
 export async function approveAssignment(user, id) {
   return transaction(async (connection) => {
-    const [rows] = await connection.execute(
-      `SELECT pc.*, l.ma_khoa, l.ten_lop, cv.ho_va_ten AS ten_co_van
-       FROM PHAN_CONG pc
-       JOIN LOP l ON l.ma_lop = pc.ma_lop
-       LEFT JOIN CVHT cv ON cv.ma_co_van = pc.ma_co_van
-       WHERE pc.ma_phan_cong = ?`,
-      [id]
-    );
-    const assignment = rows[0];
-    if (!assignment) throw notFound('Khong tim thay phan cong');
-    assertTransition('phanCong', assignment.trang_thai, PHAN_CONG.DA_DONG);
-    if (!assignment.ma_co_van) throw badRequest('Khoa chua chon CVHT');
-    await assertAdvisorCapacity(connection, assignment.ma_co_van, assignment.ma_lop);
-
-    await connection.execute(
-      'UPDATE LOP SET ma_co_van = ?, trang_thai_lop = ? WHERE ma_lop = ?',
-      [assignment.ma_co_van, PHAN_CONG.DA_DONG, assignment.ma_lop]
-    );
-    await connection.execute(
-      'UPDATE PHAN_CONG SET trang_thai = ?, ngay_phan_cong = CURDATE() WHERE ma_phan_cong = ?',
-      [PHAN_CONG.DA_DONG, id]
-    );
-    await createNotification(connection, user.ma_nhan_vien, {
-      tieu_de: 'Thông báo phân công CVHT',
-      noi_dung: `Lớp ${assignment.ten_lop} đã được phân công CVHT ${assignment.ten_co_van}.`,
-      recipients: [
-        { loai_nguoi_nhan: 'lop', ma_doi_tuong: assignment.ma_lop },
-        { loai_nguoi_nhan: 'khoa', ma_doi_tuong: assignment.ma_khoa },
-        { loai_nguoi_nhan: 'covan', ma_doi_tuong: assignment.ma_co_van }
-      ]
-    });
+    await approveAssignmentWithConnection(connection, user, id);
     return { message: 'Duyet va dong phan cong thanh cong' };
   });
 }
@@ -231,11 +307,35 @@ export async function rejectAssignment(id) {
   const assignment = rows[0];
   if (!assignment) throw notFound('Khong tim thay phan cong');
   if (assignment.trang_thai !== PHAN_CONG.DA_PHAN_CONG) throw badRequest('Chi tu choi danh sach Khoa da gui');
+  assertTransition('phanCong', assignment.trang_thai, PHAN_CONG.BI_TU_CHOI);
   await query('UPDATE PHAN_CONG SET trang_thai = :next, ma_co_van = NULL WHERE ma_phan_cong = :id', {
-    next: PHAN_CONG.DANG_PHAN_CONG,
+    next: PHAN_CONG.BI_TU_CHOI,
     id
   });
-  return { message: 'Da tu choi va tra ve Khoa chinh sua' };
+  return { message: 'Da tu choi phan cong' };
+}
+
+export async function approveAllAssignments(user) {
+  return transaction(async (connection) => {
+    const [rows] = await connection.execute(
+      'SELECT ma_phan_cong FROM PHAN_CONG WHERE trang_thai = ? ORDER BY ma_phan_cong',
+      [PHAN_CONG.DA_PHAN_CONG]
+    );
+    if (!rows.length) throw badRequest('Khong co phan cong nao can duyet');
+    for (const row of rows) {
+      await approveAssignmentWithConnection(connection, user, row.ma_phan_cong);
+    }
+    return { message: `Da duyet ${rows.length} phan cong` };
+  });
+}
+
+export async function rejectAllAssignments() {
+  const result = await query(
+    'UPDATE PHAN_CONG SET trang_thai = :next, ma_co_van = NULL WHERE trang_thai = :current',
+    { next: PHAN_CONG.BI_TU_CHOI, current: PHAN_CONG.DA_PHAN_CONG }
+  );
+  if (!result.affectedRows) throw badRequest('Khong co phan cong nao can tu choi');
+  return { message: `Da tu choi ${result.affectedRows} phan cong` };
 }
 
 export async function listReplacementRequests() {

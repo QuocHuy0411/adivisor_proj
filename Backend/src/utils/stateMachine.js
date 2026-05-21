@@ -4,7 +4,8 @@ export const PHAN_CONG = {
   CHO_PHAN_CONG: 'Chờ phân công',
   DANG_PHAN_CONG: 'Đang phân công',
   DA_PHAN_CONG: 'Đã phân công',
-  DA_DONG: 'Đã đóng'
+  DA_DONG: 'Đã đóng',
+  BI_TU_CHOI: 'Bị từ chối'
 };
 
 export const DANH_SACH_DUYET = {
@@ -29,8 +30,9 @@ const transitions = {
   phanCong: {
     [PHAN_CONG.CHO_PHAN_CONG]: [PHAN_CONG.DANG_PHAN_CONG],
     [PHAN_CONG.DANG_PHAN_CONG]: [PHAN_CONG.DA_PHAN_CONG],
-    [PHAN_CONG.DA_PHAN_CONG]: [PHAN_CONG.DA_DONG],
-    [PHAN_CONG.DA_DONG]: []
+    [PHAN_CONG.DA_PHAN_CONG]: [PHAN_CONG.DA_DONG, PHAN_CONG.BI_TU_CHOI],
+    [PHAN_CONG.DA_DONG]: [],
+    [PHAN_CONG.BI_TU_CHOI]: []
   },
   thayThe: {
     [YEU_CAU_THAY_THE.CHO_DUYET]: [
