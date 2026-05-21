@@ -1,0 +1,76 @@
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: adivisor-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: adivisor
+      MYSQL_USER: adivisor
+      MYSQL_PASSWORD: adivisor_password
+      MYSQL_ROOT_PASSWORD: root_password
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "adivisor", "-padivisor_password"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: ./Backend
+    container_name: adivisor-backend
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      PORT: 5000
+      NODE_ENV: development
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_NAME: adivisor
+      DB_USER: adivisor
+      DB_PASSWORD: adivisor_password
+      JWT_SECRET: adivisor_dev_secret_change_me
+      JWT_EXPIRES_IN: 8h
+      FRONTEND_URL: http://localhost:5173
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./Backend:/app
+      - /app/node_modules
+    command: sh -c "npm run db:init && npm run dev"
+
+  frontend:
+    build:
+      context: ./Frontend
+    container_name: adivisor-frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    environment:
+      VITE_API_URL: http://localhost:5000/api
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./Frontend:/app
+      - /app/node_modules
+    command: npm run dev
+
+  phpmyadmin:
+    image: phpmyadmin:5.2
+    container_name: adivisor-phpmyadmin
+    restart: unless-stopped
+    depends_on:
+      - mysql
+    environment:
+      PMA_HOST: mysql
+      PMA_PORT: 3306
+    ports:
+      - "8081:80"
+
+volumes:
+  mysql_data:
