@@ -32,6 +32,8 @@ temp/
 
 # Database dumps and local database files
 *.sql
+!Backend/src/database/schema.sql
+!Backend/src/database/seed.sql
 *.dump
 *.db
 *.sqlite
@@ -62,4 +64,3 @@ Desktop.ini
 
 # Docker/local tooling
 .docker/
-
