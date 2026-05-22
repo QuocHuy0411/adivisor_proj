@@ -58,7 +58,7 @@ CREATE TABLE IF NOT EXISTS LOP (
   chuyen_nganh VARCHAR(255) NOT NULL,
   nam_hoc VARCHAR(20) NOT NULL,
   ma_co_van VARCHAR(50) NULL,
-  trang_thai_lop VARCHAR(50) NOT NULL DEFAULT 'Chờ phân công',
+  trang_thai_lop VARCHAR(50) NOT NULL DEFAULT 'Chưa có cố vấn',
   FOREIGN KEY (ma_khoa) REFERENCES KHOA(ma_khoa),
   FOREIGN KEY (ma_co_van) REFERENCES CVHT(ma_co_van)
 );

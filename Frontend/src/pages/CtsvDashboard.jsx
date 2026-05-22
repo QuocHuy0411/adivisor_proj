@@ -12,10 +12,11 @@ const sectionTitle = {
   history: 'Lịch sử phân công'
 };
 
+const NO_ADVISOR = 'Chưa có cố vấn';
 const CLOSED = 'Đã đóng';
 const WAITING = 'Chờ phân công';
-const ASSIGNING = 'Đang phân công';
 const ASSIGNED = 'Đã phân công';
+const DIRECTOR_WAITING = 'Chờ giám đốc duyệt';
 const REJECTED = 'Bị từ chối';
 
 function IconButton({ label, icon, tone, onClick, disabled }) {
@@ -313,15 +314,15 @@ export default function CtsvDashboard() {
       map.get(maKhoa).assignments.push({ ...assignment, ten_khoa: assignment.ten_khoa || classRow?.ten_khoa || maKhoa });
     }
     return [...map.values()].map((group) => {
-      const currentAssignments = group.assignments.filter((row) => [WAITING, ASSIGNING, ASSIGNED, REJECTED].includes(row.trang_thai));
+      const currentAssignments = group.assignments.filter((row) => [WAITING, ASSIGNED, DIRECTOR_WAITING, REJECTED].includes(row.trang_thai));
       const closedClassCount = group.classes.filter((row) => row.ma_co_van && row.trang_thai_lop === CLOSED).length;
-      const rejectedCount = group.classes.filter((row) => row.trang_thai_lop === REJECTED).length
-        + currentAssignments.filter((row) => row.trang_thai === REJECTED).length;
-      const activeCount = currentAssignments.filter((row) => [ASSIGNING, ASSIGNED].includes(row.trang_thai)).length;
+      const directorWaitingCount = currentAssignments.filter((row) => row.trang_thai === DIRECTOR_WAITING).length;
+      const waitingCount = group.classes.filter((row) => [WAITING, NO_ADVISOR].includes(row.trang_thai_lop)).length
+        + currentAssignments.filter((row) => [WAITING, ASSIGNED, REJECTED].includes(row.trang_thai)).length;
       let trangThai = group.so_lop ? WAITING : 'Chưa có lớp';
       if (group.so_lop > 0 && closedClassCount >= group.so_lop) trangThai = CLOSED;
-      else if (rejectedCount > 0) trangThai = REJECTED;
-      else if (activeCount > 0) trangThai = ASSIGNING;
+      else if (directorWaitingCount > 0 && waitingCount === 0) trangThai = DIRECTOR_WAITING;
+      else if (waitingCount > 0) trangThai = WAITING;
       return { ...group, trang_thai: trangThai };
     }).sort((a, b) => a.ma_khoa.localeCompare(b.ma_khoa));
   }, [assignments, classById, classGroups, classRows]);
@@ -333,7 +334,7 @@ export default function CtsvDashboard() {
       .filter((row) => row.ma_khoa === assignmentGroup.ma_khoa)
       .map((classRow) => {
         const classAssignments = assignments.filter((row) => row.ma_lop === classRow.ma_lop);
-        const currentAssignment = classAssignments.find((row) => [WAITING, ASSIGNING, ASSIGNED, REJECTED].includes(row.trang_thai));
+        const currentAssignment = classAssignments.find((row) => [WAITING, ASSIGNED, DIRECTOR_WAITING, REJECTED].includes(row.trang_thai));
         const closedAssignment = classRow.ma_co_van || classRow.trang_thai_lop === CLOSED
           ? classAssignments.find((row) => row.trang_thai === CLOSED)
           : null;
@@ -346,13 +347,14 @@ export default function CtsvDashboard() {
           ten_lop: assignment?.ten_lop || classRow.ten_lop,
           ten_khoa: assignment?.ten_khoa || classRow.ten_khoa,
           ten_co_van: assignment?.ten_co_van || classRow.ten_co_van || '',
-          trang_thai: assignment?.trang_thai || classRow.trang_thai_lop || WAITING
+          trang_thai: assignment?.trang_thai || classRow.trang_thai_lop || NO_ADVISOR
         };
       })
     : [];
   const canResetAssignments = classRows.length > 0
     && classRows.every((row) => row.ma_co_van && row.trang_thai_lop === CLOSED)
     && assignments.every((row) => row.trang_thai === CLOSED);
+  const hasDirectorWaitingAssignments = assignments.some((row) => row.trang_thai === DIRECTOR_WAITING);
   const pendingRequests = requests.filter((row) => ![CLOSED, REJECTED].includes(row.trang_thai));
 
   const assignmentHistory = assignments
@@ -454,8 +456,17 @@ export default function CtsvDashboard() {
   }
 
   function exportAssignments() {
-    const hasPending = assignments.some((row) => row.trang_thai !== CLOSED);
-    const rows = (hasPending ? assignments.filter((row) => row.trang_thai !== CLOSED) : assignments).map((row) => ({
+    const directorRows = assignments.filter((row) => row.trang_thai === DIRECTOR_WAITING);
+    const allClosed = classRows.length > 0
+      && classRows.every((row) => row.ma_co_van && row.trang_thai_lop === CLOSED);
+    if (!directorRows.length && !allClosed) {
+      showError('Chỉ xuất được danh sách chờ giám đốc duyệt hoặc kết quả khi tất cả lớp đã đóng');
+      return;
+    }
+    const exportRows = directorRows.length
+      ? directorRows
+      : assignments.filter((row) => row.trang_thai === CLOSED);
+    const rows = exportRows.map((row) => ({
       ...row,
       ten_khoa: row.ten_khoa || classById[row.ma_lop]?.ten_khoa || row.ma_khoa
     }));
@@ -466,7 +477,7 @@ export default function CtsvDashboard() {
       { label: 'Cố vấn học tập', value: (row) => row.ten_co_van || '' },
       { label: 'Năm học', value: (row) => row.nam_hoc },
       { label: 'Trạng thái', value: (row) => row.trang_thai }
-    ], 'danh-sach-phan-cong', assignmentExportType);
+    ], directorRows.length ? 'phan-cong-cho-giam-doc-duyet' : 'ket-qua-phan-cong', assignmentExportType);
   }
 
   function exportReplacements() {
@@ -490,7 +501,7 @@ export default function CtsvDashboard() {
           <CsvImportPanel
             title="Tạo lớp"
             endpoint="/ctsv/classes/import"
-            hint="File CSV cần các cột: Mã lớp, Tên lớp, Mã khoa, Chuyên ngành, Năm học. Ví dụ Mã khoa: CNTT, VT, QTKD, KTDT."
+            hint="File CSV cần các cột: Mã lớp, Tên lớp, Mã khoa, Chuyên ngành. Ví dụ Mã khoa: CNTT, VT, QTKD, KTDT."
             onDone={(nextMessage) => safeAction(async () => ({ message: nextMessage }))}
             onError={showError}
           />
@@ -513,7 +524,7 @@ export default function CtsvDashboard() {
             { key: 'ten_khoa', label: 'Tên khoa' },
             { key: 'chuyen_nganh', label: 'Chuyên ngành' },
             { key: 'si_so', label: 'Sỉ số' }
-          ]} rows={classRows} actions={(row) => (
+          ]} rows={classRows} filterable actions={(row) => (
             <>
               <button type="button" onClick={() => setStudentClass(row)}>Thông tin</button>
               <button type="button" onClick={() => setAccountClass(row)}>Tài khoản</button>
@@ -544,10 +555,10 @@ export default function CtsvDashboard() {
                 <button disabled={Boolean(assignmentActionBusy)} type="button" onClick={() => assignmentBulkAction('/ctsv/classes/send-to-faculties', 'send')}>
                   {assignmentActionBusy === 'send' ? 'Đang gửi...' : 'Gửi yêu cầu'}
                 </button>
-                <button disabled={Boolean(assignmentActionBusy)} type="button" onClick={() => assignmentBulkAction('/ctsv/assignments/approve-all', 'approve')}>
+                <button disabled={Boolean(assignmentActionBusy) || !hasDirectorWaitingAssignments} type="button" onClick={() => assignmentBulkAction('/ctsv/assignments/approve-all', 'approve')}>
                   {assignmentActionBusy === 'approve' ? 'Đang duyệt...' : 'Duyệt tất cả'}
                 </button>
-                <button className="secondary" disabled={Boolean(assignmentActionBusy)} type="button" onClick={() => assignmentBulkAction('/ctsv/assignments/reject-all', 'reject')}>
+                <button className="secondary" disabled={Boolean(assignmentActionBusy) || !hasDirectorWaitingAssignments} type="button" onClick={() => assignmentBulkAction('/ctsv/assignments/reject-all', 'reject')}>
                   {assignmentActionBusy === 'reject' ? 'Đang từ chối...' : 'Từ chối tất cả'}
                 </button>
               </div>
@@ -591,7 +602,7 @@ export default function CtsvDashboard() {
               { key: 'ten_co_van_cu', label: 'Cố vấn cũ' },
               { key: 'ten_co_van_moi', label: 'Cố vấn mới', render: (row) => row.ten_co_van_moi || '-' },
               { key: 'trang_thai', label: 'Trạng thái' }
-            ]} rows={pendingRequests} actionLabel="" actions={(row) => (
+            ]} rows={pendingRequests} filterable actionLabel="" actions={(row) => (
               <>
                 {row.trang_thai === 'Đã duyệt bước 1' ? <button onClick={() => assignmentAction(`/ctsv/replacement-requests/${row.ma_yeu_cau}/start-step-2`)}>Duyệt</button> : null}
                 {row.trang_thai === 'Đang duyệt bước 2' ? <button onClick={() => assignmentAction(`/ctsv/replacement-requests/${row.ma_yeu_cau}/approve`)}>Duyệt</button> : null}
@@ -629,9 +640,9 @@ export default function CtsvDashboard() {
               { key: 'ten_lop', label: 'Lớp' },
               { key: 'ten_khoa', label: 'Khoa', render: (row) => row.ten_khoa || row.ma_khoa },
               { key: 'ten_truong_khoa', label: 'Trưởng khoa', render: (row) => row.ten_truong_khoa || '-' },
-              { key: 'nam_hoc', label: 'Năm học', render: (row) => row.nam_hoc || '-' },
               { key: 'ten_co_van_cu', label: 'Cố vấn cũ' },
-              { key: 'ten_co_van_moi', label: 'Cố vấn mới', render: (row) => row.ten_co_van_moi || '-' }
+              { key: 'ten_co_van_moi', label: 'Cố vấn mới', render: (row) => row.ten_co_van_moi || '-' },
+              { key: 'nam_hoc', label: 'Năm học', render: (row) => row.nam_hoc || '-' }
             ]} rows={replacementHistory} />
           </section>
         </>
@@ -649,8 +660,13 @@ export default function CtsvDashboard() {
               { key: 'ho_va_ten', label: 'Họ và tên' },
               { key: 'email', label: 'Email' },
               { key: 'ten_tai_khoan', label: 'Tên tài khoản' },
-              { key: 'is_active', label: 'Trạng thái', render: (row) => row.is_active ? 'Đang hoạt động' : 'Ngừng hoạt động' }
-            ]} rows={accountRows} actionLabel="" actions={(row) => (
+              {
+                key: 'is_active',
+                label: 'Trạng thái',
+                renderText: (row) => row.is_active ? 'Đang hoạt động' : 'Ngừng hoạt động',
+                render: (row) => row.is_active ? 'Đang hoạt động' : 'Ngừng hoạt động'
+              }
+            ]} rows={accountRows} filterable actionLabel="" actions={(row) => (
               <div className="icon-actions">
                 <IconButton icon={row.is_active ? '🔒' : '🔓'} label={row.is_active ? 'Khóa tài khoản' : 'Mở khóa tài khoản'} onClick={() => toggleStudentAccount(row)} />
               </div>
@@ -677,7 +693,7 @@ export default function CtsvDashboard() {
               { key: 'ho_va_ten', label: 'Tên sinh viên' },
               { key: 'email', label: 'Email' },
               { key: 'so_dien_thoai', label: 'Số điện thoại' }
-            ]} rows={studentRows} actionLabel="" actions={(row) => (
+            ]} rows={studentRows} filterable actionLabel="" actions={(row) => (
               <div className="icon-actions">
                 <IconButton icon="✎" label="Chỉnh sửa sinh viên" onClick={() => setEditingStudent(row)} />
                 <IconButton icon="🗑" label="Xóa sinh viên" tone="danger" onClick={() => deleteStudent(row)} />
@@ -700,10 +716,10 @@ export default function CtsvDashboard() {
               { key: 'ten_khoa', label: 'Khoa' },
               { key: 'ten_co_van', label: 'Cố vấn học tập', render: (row) => row.ten_co_van || '-' },
               { key: 'trang_thai', label: 'Trạng thái' }
-            ]} rows={assignmentDetailRows} actions={(row) => (
+            ]} rows={assignmentDetailRows} filterable actions={(row) => (
               <>
-                {row.ma_phan_cong !== '-' && row.trang_thai === ASSIGNED ? <button onClick={() => assignmentAction(`/ctsv/assignments/${row.ma_phan_cong}/approve`)}>Duyệt</button> : null}
-                {row.ma_phan_cong !== '-' && row.trang_thai === ASSIGNED ? <button className="secondary" onClick={() => assignmentAction(`/ctsv/assignments/${row.ma_phan_cong}/reject`)}>Từ chối</button> : null}
+                {row.ma_phan_cong !== '-' && row.trang_thai === DIRECTOR_WAITING ? <button onClick={() => assignmentAction(`/ctsv/assignments/${row.ma_phan_cong}/approve`)}>Duyệt</button> : null}
+                {row.ma_phan_cong !== '-' && row.trang_thai === DIRECTOR_WAITING ? <button className="secondary" onClick={() => assignmentAction(`/ctsv/assignments/${row.ma_phan_cong}/reject`)}>Từ chối</button> : null}
               </>
             )} />
           </section>

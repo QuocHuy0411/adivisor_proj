@@ -392,7 +392,7 @@ export async function importAdvisorInfo(file) {
 
   for (const row of records) {
     await createAdvisorInfo({
-      ma_co_van: valueOf(row, ['ma_co_van', 'Ma co van', 'Mã cố vấn', 'Ma nhan vien', 'Mã nhân viên']),
+      ma_co_van: valueOf(row, ['ma_nhan_vien', 'Mã nhân viên', 'Ma nhan vien']),
       ho_va_ten: valueOf(row, ['ho_va_ten', 'Ten CVHT', 'Tên CVHT', 'Ho va ten', 'Họ và tên', 'Ho ten', 'Họ tên']),
       so_dien_thoai: valueOf(row, ['so_dien_thoai', 'So dien thoai', 'Số điện thoại']),
       ten_khoa: valueOf(row, ['ten_khoa', 'Ten khoa', 'Tên khoa', 'Khoa']),
@@ -411,9 +411,9 @@ export async function importAdvisorAccounts(file) {
   let created = 0;
 
   for (const row of records) {
-    const ma_co_van = valueOf(row, ['ma_co_van', 'Ma co van', 'Mã cố vấn', 'Ma nhan vien', 'Mã nhân viên']);
+    const ma_co_van = valueOf(row, ['ma_nhan_vien', 'Mã nhân viên', 'Ma nhan vien']);
     const email = valueOf(row, ['email', 'Email']);
-    if (!ma_co_van || !email) throw badRequest('CSV tài khoản cố vấn học tập cần có: mã cố vấn, email');
+    if (!ma_co_van || !email) throw badRequest('CSV tài khoản cố vấn học tập cần có: mã nhân viên, email');
 
     await transaction(async (connection) => {
       const [advisors] = await connection.execute('SELECT * FROM CVHT WHERE ma_co_van = ?', [ma_co_van]);
@@ -443,7 +443,7 @@ export async function importAdvisorInfoAndAccounts(file) {
 
   for (const row of records) {
     const payload = {
-      ma_co_van: valueOf(row, ['ma_co_van', 'Ma co van', 'Mã cố vấn', 'Ma nhan vien', 'Mã nhân viên']),
+      ma_co_van: valueOf(row, ['ma_nhan_vien', 'Mã nhân viên', 'Ma nhan vien']),
       ho_va_ten: valueOf(row, ['ho_va_ten', 'Ten CVHT', 'Tên CVHT', 'Ho va ten', 'Họ và tên', 'Ho ten', 'Họ tên']),
       so_dien_thoai: valueOf(row, ['so_dien_thoai', 'So dien thoai', 'Số điện thoại']),
       email: valueOf(row, ['email', 'Email']),
@@ -452,7 +452,7 @@ export async function importAdvisorInfoAndAccounts(file) {
       uu_tien: valueOf(row, ['uu_tien', 'Uu tien', 'Ưu tiên', 'Do uu tien', 'Độ ưu tiên']) || 2
     };
     if (!payload.ma_co_van || !payload.ho_va_ten || !payload.so_dien_thoai || !payload.email || !payload.ten_khoa || !payload.chuyen_nganh) {
-      throw badRequest('CSV cố vấn học tập cần có: Mã cố vấn, Họ và tên, Số điện thoại, Email, Khoa, Chuyên ngành, Ưu tiên');
+      throw badRequest('CSV cố vấn học tập cần có: Mã nhân viên, Họ và tên, Số điện thoại, Email, Khoa, Chuyên ngành, Ưu tiên');
     }
 
     await transaction(async (connection) => {

@@ -3,7 +3,7 @@ import { badRequest, notFound } from '../../utils/httpError.js';
 import { makeId } from '../../utils/ids.js';
 import { defaultPasswordForRole, hashPassword } from '../../utils/passwords.js';
 import { parseCsv } from '../../utils/csv.js';
-import { assertTransition, PHAN_CONG, YEU_CAU_THAY_THE } from '../../utils/stateMachine.js';
+import { assertTransition, LOP, PHAN_CONG, YEU_CAU_THAY_THE } from '../../utils/stateMachine.js';
 
 async function createStudentAccount(connection, student) {
   const password = await hashPassword(defaultPasswordForRole('sinhvien', student));
@@ -26,6 +26,13 @@ function readCsvValue(row, keys) {
   return '';
 }
 
+function currentAcademicYear(date = new Date()) {
+  const year = date.getFullYear();
+  const month = date.getMonth() + 1;
+  const startYear = month >= 9 ? year : year - 1;
+  return `${startYear}-${startYear + 1}`;
+}
+
 function studentPayloadFromRow(row, ma_lop) {
   return {
     ma_sinh_vien: readCsvValue(row, ['ma_sinh_vien', 'Mã sinh viên', 'Ma sinh vien', 'MSSV', 'mssv']),
@@ -42,7 +49,7 @@ function classPayloadFromRow(row) {
     ten_lop: readCsvValue(row, ['ten_lop', 'Tên lớp', 'Ten lop']),
     ma_khoa: readCsvValue(row, ['ma_khoa', 'Mã khoa', 'Ma khoa']),
     chuyen_nganh: readCsvValue(row, ['chuyen_nganh', 'Chuyên ngành', 'Chuyen nganh']),
-    nam_hoc: readCsvValue(row, ['nam_hoc', 'Năm học', 'Nam hoc']),
+    nam_hoc: currentAcademicYear(),
     so_luong_sv: 0
   };
 }
@@ -190,12 +197,13 @@ export async function listClassGroups() {
 }
 
 export async function createClass(payload) {
-  const required = ['ma_lop', 'ma_khoa', 'ten_lop', 'chuyen_nganh', 'nam_hoc'];
+  const required = ['ma_lop', 'ma_khoa', 'ten_lop', 'chuyen_nganh'];
   for (const field of required) if (!payload[field]) throw badRequest(`Thiếu trường ${field}`);
+  const nam_hoc = payload.nam_hoc || currentAcademicYear();
   await query(
     `INSERT INTO LOP (ma_lop, ma_khoa, ten_lop, so_luong_sv, chuyen_nganh, nam_hoc, ma_co_van, trang_thai_lop)
      VALUES (:ma_lop, :ma_khoa, :ten_lop, :so_luong_sv, :chuyen_nganh, :nam_hoc, NULL, :trang_thai_lop)`,
-    { ...payload, so_luong_sv: Number(payload.so_luong_sv || 0), trang_thai_lop: PHAN_CONG.CHO_PHAN_CONG }
+    { ...payload, nam_hoc, so_luong_sv: Number(payload.so_luong_sv || 0), trang_thai_lop: LOP.CHUA_CO_CVHT }
   );
   return { message: 'Tạo lớp thành công' };
 }
@@ -284,12 +292,13 @@ export async function listAssignments() {
 }
 
 export async function createAssignmentRequest(payload) {
-  if (!payload.ma_lop || !payload.nam_hoc) throw badRequest('Cần chọn lớp và năm học');
+  if (!payload.ma_lop) throw badRequest('Cần chọn lớp');
   const ma_phan_cong = makeId('PC');
+  const nam_hoc = currentAcademicYear();
   await query(
     `INSERT INTO PHAN_CONG (ma_phan_cong, ma_lop, ma_co_van, nam_hoc, trang_thai, ngay_phan_cong)
      VALUES (:ma_phan_cong, :ma_lop, NULL, :nam_hoc, :trang_thai, NULL)`,
-    { ma_phan_cong, ma_lop: payload.ma_lop, nam_hoc: payload.nam_hoc, trang_thai: PHAN_CONG.CHO_PHAN_CONG }
+    { ma_phan_cong, ma_lop: payload.ma_lop, nam_hoc, trang_thai: PHAN_CONG.CHO_PHAN_CONG }
   );
   await query('UPDATE LOP SET ma_co_van = NULL, trang_thai_lop = :status WHERE ma_lop = :ma_lop', {
     status: PHAN_CONG.CHO_PHAN_CONG,
@@ -302,9 +311,11 @@ export async function sendAssignmentToFaculty(id) {
   const rows = await query('SELECT * FROM PHAN_CONG WHERE ma_phan_cong = :id', { id });
   const assignment = rows[0];
   if (!assignment) throw notFound('Không tìm thấy phân công');
-  assertTransition('phanCong', assignment.trang_thai, PHAN_CONG.DANG_PHAN_CONG);
+  if (assignment.trang_thai !== PHAN_CONG.CHO_PHAN_CONG) {
+    throw badRequest('Chỉ gửi yêu cầu đang ở trạng thái chờ phân công');
+  }
   await query('UPDATE PHAN_CONG SET trang_thai = :next WHERE ma_phan_cong = :id', {
-    next: 'Bị từ chối',
+    next: PHAN_CONG.CHO_PHAN_CONG,
     id
   });
   return { message: 'Đã gửi yêu cầu phân công cho Khoa' };
@@ -327,7 +338,7 @@ export async function resetClassAdvisors() {
        FROM PHAN_CONG
        WHERE trang_thai IN (?, ?, ?, ?)
        LIMIT 1`,
-      [PHAN_CONG.CHO_PHAN_CONG, PHAN_CONG.DANG_PHAN_CONG, PHAN_CONG.DA_PHAN_CONG, 'Bị từ chối']
+      [PHAN_CONG.CHO_PHAN_CONG, PHAN_CONG.DA_PHAN_CONG, PHAN_CONG.CHO_GIAM_DOC_DUYET, PHAN_CONG.BI_TU_CHOI]
     );
     if (pendingAssignments.length) {
       throw badRequest('Chỉ được làm mới khi không còn phân công đang xử lý hoặc bị từ chối');
@@ -335,7 +346,7 @@ export async function resetClassAdvisors() {
     await connection.execute(
       `DELETE FROM PHAN_CONG
        WHERE trang_thai IN (?, ?, ?, ?)`,
-      [PHAN_CONG.CHO_PHAN_CONG, PHAN_CONG.DANG_PHAN_CONG, PHAN_CONG.DA_PHAN_CONG, 'Bị từ chối']
+      [PHAN_CONG.CHO_PHAN_CONG, PHAN_CONG.DA_PHAN_CONG, PHAN_CONG.CHO_GIAM_DOC_DUYET, PHAN_CONG.BI_TU_CHOI]
     );
     const [classResult] = await connection.execute(
       'UPDATE LOP SET ma_co_van = NULL, trang_thai_lop = ?',
@@ -348,55 +359,49 @@ export async function resetClassAdvisors() {
 export async function sendClassRequestsToFaculties() {
   return transaction(async (connection) => {
     const [classes] = await connection.execute(
-      `SELECT l.ma_lop, l.nam_hoc
+      `SELECT l.ma_lop
        FROM LOP l
-       WHERE l.trang_thai_lop = ? AND l.ma_co_van IS NULL
+       WHERE l.ma_co_van IS NULL AND l.trang_thai_lop IN (?, ?)
        ORDER BY l.ma_khoa, l.ten_lop`,
-      [PHAN_CONG.CHO_PHAN_CONG]
+      [LOP.CHUA_CO_CVHT, PHAN_CONG.CHO_PHAN_CONG]
     );
-    if (!classes.length) throw badRequest('Không có lớp chờ phân công để gửi Khoa');
+    if (!classes.length) throw badRequest('Không có lớp chưa có cố vấn để gửi Khoa');
 
     let sent = 0;
     for (const row of classes) {
+      const nam_hoc = currentAcademicYear();
       const [existingRows] = await connection.execute(
         `SELECT ma_phan_cong, trang_thai
          FROM PHAN_CONG
-         WHERE ma_lop = ? AND nam_hoc = ? AND trang_thai IN (?, ?, ?)
+         WHERE ma_lop = ? AND trang_thai IN (?, ?, ?)
          ORDER BY FIELD(trang_thai, ?, ?, ?)
          LIMIT 1`,
         [
           row.ma_lop,
-          row.nam_hoc,
           PHAN_CONG.CHO_PHAN_CONG,
-          PHAN_CONG.DANG_PHAN_CONG,
           PHAN_CONG.DA_PHAN_CONG,
+          PHAN_CONG.CHO_GIAM_DOC_DUYET,
           PHAN_CONG.CHO_PHAN_CONG,
-          PHAN_CONG.DANG_PHAN_CONG,
-          PHAN_CONG.DA_PHAN_CONG
+          PHAN_CONG.DA_PHAN_CONG,
+          PHAN_CONG.CHO_GIAM_DOC_DUYET
         ]
       );
       const existing = existingRows[0];
-      if (existing?.trang_thai === PHAN_CONG.DA_PHAN_CONG) continue;
-      if (existing) {
-        if (existing.trang_thai === PHAN_CONG.CHO_PHAN_CONG) {
-          await connection.execute(
-            'UPDATE PHAN_CONG SET trang_thai = ? WHERE ma_phan_cong = ?',
-            [PHAN_CONG.DANG_PHAN_CONG, existing.ma_phan_cong]
-          );
-          sent += 1;
-        }
-        continue;
-      }
+      if (existing) continue;
 
       await connection.execute(
         `INSERT INTO PHAN_CONG (ma_phan_cong, ma_lop, ma_co_van, nam_hoc, trang_thai, ngay_phan_cong)
          VALUES (?, ?, NULL, ?, ?, NULL)`,
-        [makeId('PC'), row.ma_lop, row.nam_hoc, PHAN_CONG.DANG_PHAN_CONG]
+        [makeId('PC'), row.ma_lop, nam_hoc, PHAN_CONG.CHO_PHAN_CONG]
+      );
+      await connection.execute(
+        'UPDATE LOP SET trang_thai_lop = ? WHERE ma_lop = ?',
+        [PHAN_CONG.CHO_PHAN_CONG, row.ma_lop]
       );
       sent += 1;
     }
 
-    if (!sent) throw badRequest('Các lớp chờ phân công đã được gửi đến Khoa');
+    if (!sent) throw badRequest('Các lớp chưa có cố vấn đã được gửi đến Khoa');
     return { message: `Đã gửi ${sent} yêu cầu phân công đến các Khoa` };
   });
 }
@@ -429,6 +434,7 @@ async function assertAdvisorCapacity(connection, ma_co_van, ma_lop) {
 }
 
 async function approveAssignmentWithConnection(connection, user, id) {
+  const nam_hoc = currentAcademicYear();
   const [rows] = await connection.execute(
     `SELECT pc.*, l.ma_khoa, l.ten_lop, cv.ho_va_ten AS ten_co_van, cvtk.is_active AS co_van_dang_hoat_dong
      FROM PHAN_CONG pc
@@ -450,12 +456,12 @@ async function approveAssignmentWithConnection(connection, user, id) {
     [assignment.ma_co_van, PHAN_CONG.DA_DONG, assignment.ma_lop]
   );
   await connection.execute(
-    'UPDATE PHAN_CONG SET trang_thai = ?, ngay_phan_cong = CURDATE() WHERE ma_phan_cong = ?',
-    [PHAN_CONG.DA_DONG, id]
+    'UPDATE PHAN_CONG SET trang_thai = ?, nam_hoc = ?, ngay_phan_cong = CURDATE() WHERE ma_phan_cong = ?',
+    [PHAN_CONG.DA_DONG, nam_hoc, id]
   );
   await createNotification(connection, user.ma_nhan_vien, {
     tieu_de: 'Thông báo phân công cố vấn học tập',
-    noi_dung: `Đã phân công giảng viên cho năm học ${assignment.nam_hoc}.`,
+    noi_dung: `Đã phân công giảng viên cho năm học ${nam_hoc}.`,
     recipients: [
       { loai_nguoi_nhan: 'lop', ma_doi_tuong: assignment.ma_lop },
       { loai_nguoi_nhan: 'khoa', ma_doi_tuong: assignment.ma_khoa },
@@ -475,13 +481,13 @@ export async function rejectAssignment(id) {
   const rows = await query('SELECT * FROM PHAN_CONG WHERE ma_phan_cong = :id', { id });
   const assignment = rows[0];
   if (!assignment) throw notFound('Không tìm thấy phân công');
-  if (assignment.trang_thai !== PHAN_CONG.DA_PHAN_CONG) throw badRequest('Chỉ từ chối danh sách Khoa đã gửi');
+  if (assignment.trang_thai !== PHAN_CONG.CHO_GIAM_DOC_DUYET) throw badRequest('Chỉ từ chối phân công đang chờ giám đốc duyệt');
   await query('UPDATE PHAN_CONG SET trang_thai = :next, ma_co_van = NULL WHERE ma_phan_cong = :id', {
-    next: PHAN_CONG.DANG_PHAN_CONG,
+    next: PHAN_CONG.CHO_PHAN_CONG,
     id
   });
   await query('UPDATE LOP SET ma_co_van = NULL, trang_thai_lop = :status WHERE ma_lop = :ma_lop', {
-    status: 'Bị từ chối',
+    status: PHAN_CONG.CHO_PHAN_CONG,
     ma_lop: assignment.ma_lop
   });
   return { message: 'Đã từ chối phân công' };
@@ -491,7 +497,7 @@ export async function approveAllAssignments(user) {
   return transaction(async (connection) => {
     const [rows] = await connection.execute(
       'SELECT ma_phan_cong FROM PHAN_CONG WHERE trang_thai = ? ORDER BY ma_phan_cong',
-      [PHAN_CONG.DA_PHAN_CONG]
+      [PHAN_CONG.CHO_GIAM_DOC_DUYET]
     );
     if (!rows.length) throw badRequest('Không có phân công nào cần duyệt');
     for (const row of rows) {
@@ -505,18 +511,18 @@ export async function rejectAllAssignments() {
   return transaction(async (connection) => {
     const [rows] = await connection.execute(
       'SELECT ma_phan_cong, ma_lop FROM PHAN_CONG WHERE trang_thai = ?',
-      [PHAN_CONG.DA_PHAN_CONG]
+      [PHAN_CONG.CHO_GIAM_DOC_DUYET]
     );
     if (!rows.length) throw badRequest('Không có phân công nào cần từ chối');
 
     for (const row of rows) {
       await connection.execute(
         'UPDATE PHAN_CONG SET trang_thai = ?, ma_co_van = NULL WHERE ma_phan_cong = ?',
-        ['Bị từ chối', row.ma_phan_cong]
+        [PHAN_CONG.CHO_PHAN_CONG, row.ma_phan_cong]
       );
       await connection.execute(
         'UPDATE LOP SET ma_co_van = NULL, trang_thai_lop = ? WHERE ma_lop = ?',
-        ['Bị từ chối', row.ma_lop]
+        [PHAN_CONG.CHO_PHAN_CONG, row.ma_lop]
       );
     }
     return { message: `Đã từ chối ${rows.length} phân công` };
@@ -561,6 +567,7 @@ export async function startReplacementStep2(id) {
 
 export async function approveReplacement(user, id) {
   return transaction(async (connection) => {
+    const nam_hoc = currentAcademicYear();
     const [rows] = await connection.execute(
       `SELECT yc.*, pc.ma_lop, pc.ma_co_van AS ma_co_van_moi, l.ten_lop, l.ma_khoa,
               cv.ho_va_ten AS ten_co_van_moi, cvtk.is_active AS co_van_moi_dang_hoat_dong
@@ -588,8 +595,9 @@ export async function approveReplacement(user, id) {
       'Đã có CVHT',
       request.ma_lop
     ]);
-    await connection.execute('UPDATE PHAN_CONG SET trang_thai = ?, ngay_phan_cong = CURDATE() WHERE ma_phan_cong = ?', [
+    await connection.execute('UPDATE PHAN_CONG SET trang_thai = ?, nam_hoc = ?, ngay_phan_cong = CURDATE() WHERE ma_phan_cong = ?', [
       PHAN_CONG.DA_DONG,
+      nam_hoc,
       request.ma_phan_cong
     ]);
     await connection.execute('UPDATE YEU_CAU_THAY_THE SET trang_thai = ? WHERE ma_yeu_cau = ?', [

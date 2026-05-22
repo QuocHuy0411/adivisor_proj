@@ -58,7 +58,7 @@ async function seedAccounts(connection) {
   await connection.query(
     `INSERT IGNORE INTO LOP
      (ma_lop, ma_khoa, ten_lop, so_luong_sv, chuyen_nganh, nam_hoc, ma_co_van, trang_thai_lop)
-     VALUES ('D21CQCN01', 'CNTT', 'D21CQCN01', 1, 'Công nghệ phần mềm', '2026-2027', NULL, 'Chờ phân công')`
+     VALUES ('D21CQCN01', 'CNTT', 'D21CQCN01', 1, 'Công nghệ phần mềm', '2026-2027', NULL, 'Chưa có cố vấn')`
   );
   await connection.query(
     `INSERT IGNORE INTO SINH_VIEN

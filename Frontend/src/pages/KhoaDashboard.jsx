@@ -5,8 +5,12 @@ import AppLayout from '../components/AppLayout.jsx';
 import DataTable from '../components/DataTable.jsx';
 import Toast from '../components/Toast.jsx';
 
-const ASSIGNMENT_RECEIVED_STATUSES = ['Đang phân công', 'Đã phân công'];
-const ASSIGNMENT_HISTORY_STATUSES = ['Đã đóng'];
+const WAITING = 'Chờ phân công';
+const ASSIGNED = 'Đã phân công';
+const DIRECTOR_WAITING = 'Chờ giám đốc duyệt';
+const CLOSED = 'Đã đóng';
+const ASSIGNMENT_RECEIVED_STATUSES = [WAITING, ASSIGNED, DIRECTOR_WAITING];
+const ASSIGNMENT_HISTORY_STATUSES = [CLOSED];
 const REPLACEMENT_HISTORY_STATUSES = ['Đã đóng', 'Bị từ chối'];
 const sectionTitle = {
   assignment: 'Phân công',
@@ -157,8 +161,16 @@ export default function KhoaDashboard() {
         && (assignment.ten_truong_khoa || '-') === historyModal.ten_truong_khoa
     ))
     : [];
-  const hasPendingAssignment = receivedAssignments.some((assignment) => assignment.trang_thai === 'Đang phân công');
-  const assignmentSummaryStatus = receivedAssignments.length && !hasPendingAssignment ? 'Đã phân công' : '';
+  const hasWaitingAssignment = receivedAssignments.some((assignment) => assignment.trang_thai === WAITING);
+  const hasAssignedAssignment = receivedAssignments.some((assignment) => assignment.trang_thai === ASSIGNED);
+  const hasDirectorWaitingAssignment = receivedAssignments.some((assignment) => assignment.trang_thai === DIRECTOR_WAITING);
+  const canAutoAssign = hasWaitingAssignment && !assignmentBusy;
+  const canSubmitAssignments = hasAssignedAssignment && !assignmentBusy;
+  const assignmentSummaryStatus = !receivedAssignments.length
+    ? 'Chưa có yêu cầu'
+    : hasDirectorWaitingAssignment && !hasWaitingAssignment && !hasAssignedAssignment
+      ? DIRECTOR_WAITING
+      : WAITING;
 
   return (
     <AppLayout title={sectionTitle[activeSection]}>
@@ -178,21 +190,15 @@ export default function KhoaDashboard() {
                   </tr>
                 </thead>
                 <tbody>
-                  {receivedAssignments.length ? (
-                    <tr>
-                      <td>Có yêu cầu phân công</td>
-                      <td>{assignmentSummaryStatus}</td>
-                      <td>
-                        <button type="button" onClick={() => setAssignmentModalOpen(true)}>
-                          Xem yêu cầu
-                        </button>
-                      </td>
-                    </tr>
-                  ) : (
-                    <tr>
-                      <td colSpan="3">Chưa có dữ liệu</td>
-                    </tr>
-                  )}
+                  <tr>
+                    <td>{receivedAssignments.length ? 'Có yêu cầu phân công' : 'Chưa có yêu cầu'}</td>
+                    <td>{assignmentSummaryStatus}</td>
+                    <td>
+                      <button type="button" disabled={!receivedAssignments.length} onClick={() => setAssignmentModalOpen(true)}>
+                        Xem yêu cầu
+                      </button>
+                    </td>
+                  </tr>
                 </tbody>
               </table>
             </div>
@@ -228,7 +234,7 @@ export default function KhoaDashboard() {
               { key: 'ten_truong_khoa', label: 'Tên trưởng Khoa' }
             ]} rows={assignmentHistoryGroups} actionLabel="" actions={(row) => (
               <div className="icon-actions">
-                <IconButton icon="🔎" label="Xem danh sách lớp" onClick={() => setHistoryModal(row)} />
+                <IconButton icon="🔍" label="Xem danh sách lớp" onClick={() => setHistoryModal(row)} />
               </div>
             )} />
           </section>
@@ -238,11 +244,11 @@ export default function KhoaDashboard() {
             <DataTable columns={[
               { key: 'ma_yeu_cau', label: 'Mã yêu cầu' },
               { key: 'ten_lop', label: 'Lớp' },
-              { key: 'nam_hoc', label: 'Năm học', render: (row) => row.nam_hoc || '-' },
               { key: 'ten_truong_khoa', label: 'Tên trưởng Khoa', render: (row) => row.ten_truong_khoa || '-' },
               { key: 'ten_co_van_cu', label: 'CVHT cũ' },
               { key: 'ten_co_van_moi', label: 'CVHT mới', render: (row) => row.ten_co_van_moi || '-' },
-              { key: 'trang_thai', label: 'Trạng thái' }
+              { key: 'trang_thai', label: 'Trạng thái' },
+              { key: 'nam_hoc', label: 'Năm học', render: (row) => row.nam_hoc || '-' }
             ]} rows={replacementHistory} />
           </section>
         </>
@@ -250,7 +256,7 @@ export default function KhoaDashboard() {
         <section className="panel">
           <h2>Danh sách nhân viên</h2>
           <DataTable columns={[
-            { key: 'ma_co_van', label: 'Mã' },
+            { key: 'ma_co_van', label: 'Mã nhân viên' },
             { key: 'ho_va_ten', label: 'Họ tên' },
             { key: 'chuyen_nganh', label: 'Chuyên ngành' },
             {
@@ -269,7 +275,7 @@ export default function KhoaDashboard() {
               )
             },
             { key: 'so_lop_dang_phu_trach', label: 'Số lớp' }
-          ]} rows={advisors} />
+          ]} rows={advisors} filterable />
         </section>
       )}
 
@@ -281,14 +287,14 @@ export default function KhoaDashboard() {
               <div className="modal-actions">
                 <button
                   type="button"
-                  disabled={!hasPendingAssignment || assignmentBusy}
+                  disabled={!canAutoAssign}
                   onClick={autoAssign}
                 >
                   {assignmentBusy ? 'Đang xử lý...' : 'Tự động'}
                 </button>
                 <button
                   type="button"
-                  disabled={!hasPendingAssignment || assignmentBusy}
+                  disabled={!canSubmitAssignments}
                   onClick={submitAssignments}
                 >
                   Gửi
@@ -312,7 +318,7 @@ export default function KhoaDashboard() {
               {
                 key: 'ten_co_van',
                 label: 'Cố vấn học tập',
-                render: (row) => row.trang_thai === 'Đang phân công' ? (
+                render: (row) => [WAITING, ASSIGNED].includes(row.trang_thai) ? (
                   <input
                     className="table-input"
                     list="advisor-options"
@@ -328,7 +334,7 @@ export default function KhoaDashboard() {
                 ) : (row.ten_co_van || '-')
               },
               { key: 'trang_thai', label: 'Trạng thái' }
-            ]} rows={receivedAssignments} />
+            ]} rows={receivedAssignments} filterable />
           </section>
         </div>
       ) : null}
@@ -346,7 +352,7 @@ export default function KhoaDashboard() {
               { key: 'chuyen_nganh', label: 'Chuyên ngành' },
               { key: 'so_luong_sv', label: 'Sĩ số' },
               { key: 'ten_co_van', label: 'Cố vấn học tập', render: (row) => row.ten_co_van || '-' }
-            ]} rows={historyDetailRows} />
+            ]} rows={historyDetailRows} filterable />
           </section>
         </div>
       ) : null}

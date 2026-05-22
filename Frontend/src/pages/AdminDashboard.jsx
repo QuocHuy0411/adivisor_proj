@@ -10,7 +10,7 @@ const adminNav = [
 
 const csvNotes = {
   heads: 'File CSV bắt buộc gồm: Mã nhân viên, Họ và tên, Email, Khoa. Khoa phải ghi đầy đủ, ví dụ: Công nghệ thông tin.',
-  advisors: 'File CSV bắt buộc gồm: Mã cố vấn, Họ và tên, Số điện thoại, Email, Khoa, Chuyên ngành, Ưu tiên. Khoa phải ghi đầy đủ, ví dụ: Công nghệ thông tin.'
+  advisors: 'File CSV bắt buộc gồm: Mã nhân viên, Họ và tên, Số điện thoại, Email, Khoa, Chuyên ngành, Ưu tiên. Khoa phải ghi đầy đủ, ví dụ: Công nghệ thông tin.'
 };
 
 function IconButton({ label, icon, tone, onClick }) {
@@ -359,6 +359,7 @@ export default function AdminDashboard() {
                 {
                   key: 'trang_thai',
                   label: 'Trạng thái',
+                  renderText: (row) => row.is_active ? 'Đang hoạt động' : 'Ngừng hoạt động',
                   render: (row) => (
                     <span className={`status-pill ${row.is_active ? 'active' : 'inactive'}`}>
                       {row.is_active ? 'Đang hoạt động' : 'Ngừng hoạt động'}
@@ -367,6 +368,7 @@ export default function AdminDashboard() {
                 }
               ]}
               rows={employeeAccounts}
+              filterable
               actions={(row) => (
                 <div className="icon-actions">
                   {row.loai_tai_khoan !== 'covan' ? (
@@ -395,7 +397,7 @@ export default function AdminDashboard() {
             ) : null}
             <DataTable
               columns={[
-                { key: 'ma_co_van', label: 'Mã cố vấn' },
+                { key: 'ma_co_van', label: 'Mã nhân viên' },
                 { key: 'ho_va_ten', label: 'Họ và tên' },
                 { key: 'email', label: 'Email' },
                 { key: 'so_dien_thoai', label: 'Số điện thoại' },
@@ -403,6 +405,7 @@ export default function AdminDashboard() {
                 { key: 'uu_tien', label: 'Ưu tiên' }
               ]}
               rows={advisorRows}
+              filterable
               actions={(row) => (
                 <div className="icon-actions">
                   <IconButton icon="✎" label="Chỉnh sửa" onClick={() => setEditingAdvisor(row)} />

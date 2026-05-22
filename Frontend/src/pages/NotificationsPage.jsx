@@ -49,7 +49,7 @@ export default function NotificationsPage() {
           { key: 'noi_dung', label: 'Nội dung' }
         ]} rows={rows} actionLabel="" actions={user?.loai_tai_khoan === 'khoa' ? (row) => (
           <div className="icon-actions">
-            <IconButton icon="🔎" label="Xem danh sách phân công" onClick={() => setSelectedYear(row.nam_hoc)} />
+            <IconButton icon="🔍" label="Xem danh sách phân công" onClick={() => setSelectedYear(row.nam_hoc)} />
           </div>
         ) : null} />
       </section>

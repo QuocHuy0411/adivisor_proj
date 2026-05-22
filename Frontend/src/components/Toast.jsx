@@ -13,7 +13,7 @@ export default function Toast({ message, type = 'success', onClose }) {
     <div className="toast-wrap">
       <div className={`toast ${type}`}>
         <span>{message}</span>
-        <button className="toast-close" type="button" aria-label="Tắt thông báo" onClick={onClose}>×</button>
+        <button className="toast-close" type="button" aria-label="Tắt thông báo" onClick={onClose}>x</button>
       </div>
     </div>
   );

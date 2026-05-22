@@ -45,7 +45,7 @@ export async function createReplacementRequest(user, payload) {
     await connection.execute(
       `INSERT INTO PHAN_CONG (ma_phan_cong, ma_lop, ma_co_van, nam_hoc, trang_thai, ngay_phan_cong)
        VALUES (?, ?, NULL, ?, ?, NULL)`,
-      [ma_phan_cong, payload.ma_lop, lop.nam_hoc, PHAN_CONG.DANG_PHAN_CONG]
+      [ma_phan_cong, payload.ma_lop, lop.nam_hoc, PHAN_CONG.CHO_PHAN_CONG]
     );
     await connection.execute(
       `INSERT INTO YEU_CAU_THAY_THE

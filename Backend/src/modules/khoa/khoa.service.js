@@ -10,11 +10,11 @@ async function countAdvisorClasses(ma_co_van) {
           FROM PHAN_CONG pc
           JOIN LOP l ON l.ma_lop = pc.ma_lop
           WHERE pc.ma_co_van = :ma_co_van
-            AND pc.trang_thai IN (:dang_phan_cong, :da_phan_cong)) AS total`,
+            AND pc.trang_thai IN (:da_phan_cong, :cho_giam_doc_duyet)) AS total`,
     {
       ma_co_van,
-      dang_phan_cong: PHAN_CONG.DANG_PHAN_CONG,
-      da_phan_cong: PHAN_CONG.DA_PHAN_CONG
+      da_phan_cong: PHAN_CONG.DA_PHAN_CONG,
+      cho_giam_doc_duyet: PHAN_CONG.CHO_GIAM_DOC_DUYET
     }
   );
   return Number(rows[0].total);
@@ -95,7 +95,7 @@ export async function autoAssignAdvisors(user) {
        JOIN LOP l ON l.ma_lop = pc.ma_lop
        WHERE l.ma_khoa = ? AND pc.trang_thai = ?
        ORDER BY l.chuyen_nganh, l.ten_lop`,
-      [user.ma_khoa, PHAN_CONG.DANG_PHAN_CONG]
+      [user.ma_khoa, PHAN_CONG.CHO_PHAN_CONG]
     );
     if (!assignments.length) throw badRequest('Không có yêu cầu đang phân công');
 
@@ -110,7 +110,7 @@ export async function autoAssignAdvisors(user) {
        WHERE cv.ma_khoa = ? AND tk.is_active = true AND cv.uu_tien <> 3
        GROUP BY cv.ma_co_van, cv.ho_va_ten, cv.chuyen_nganh, cv.uu_tien
        ORDER BY cv.uu_tien, cv.ho_va_ten`,
-      [PHAN_CONG.DANG_PHAN_CONG, PHAN_CONG.DA_PHAN_CONG, user.ma_khoa]
+      [PHAN_CONG.DA_PHAN_CONG, PHAN_CONG.CHO_GIAM_DOC_DUYET, user.ma_khoa]
     );
     const advisors = advisorRows.map((advisor) => ({
       ...advisor,
@@ -140,8 +140,8 @@ export async function autoAssignAdvisors(user) {
       }
 
       await connection.execute(
-        'UPDATE PHAN_CONG SET ma_co_van = ?, ten_truong_khoa = ? WHERE ma_phan_cong = ?',
-        [advisor.ma_co_van, user.ho_va_ten, assignment.ma_phan_cong]
+        'UPDATE PHAN_CONG SET ma_co_van = ?, trang_thai = ?, ten_truong_khoa = ? WHERE ma_phan_cong = ?',
+        [advisor.ma_co_van, PHAN_CONG.DA_PHAN_CONG, user.ho_va_ten, assignment.ma_phan_cong]
       );
       advisor.so_lop_dang_phu_trach += 1;
     }
@@ -162,11 +162,14 @@ export async function assignAdvisor(user, ma_phan_cong, ma_co_van) {
     const assignment = rows[0];
     if (!assignment) throw notFound('Không tìm thấy phân công');
     if (assignment.ma_khoa !== user.ma_khoa) throw forbidden('Chỉ thao tác dữ liệu thuộc Khoa mình');
-    if (assignment.trang_thai !== PHAN_CONG.DANG_PHAN_CONG && assignment.trang_thai !== PHAN_CONG.DA_PHAN_CONG) {
-      throw badRequest('Chỉ phân công khi trạng thái đang phân công');
+    if (![PHAN_CONG.CHO_PHAN_CONG, PHAN_CONG.DA_PHAN_CONG].includes(assignment.trang_thai)) {
+      throw badRequest('Chỉ phân công khi trạng thái chờ phân công hoặc đã phân công');
     }
     await assertAdvisorAssignable(user.ma_khoa, ma_co_van);
-    await connection.execute('UPDATE PHAN_CONG SET ma_co_van = ? WHERE ma_phan_cong = ?', [ma_co_van, ma_phan_cong]);
+    await connection.execute(
+      'UPDATE PHAN_CONG SET ma_co_van = ?, trang_thai = ?, ten_truong_khoa = ? WHERE ma_phan_cong = ?',
+      [ma_co_van, PHAN_CONG.DA_PHAN_CONG, user.ho_va_ten, ma_phan_cong]
+    );
     return { message: 'Đã chọn cố vấn học tập cho lớp' };
   });
 }
@@ -180,9 +183,9 @@ export async function submitAssignment(user, ma_phan_cong) {
   if (!assignment) throw notFound('Không tìm thấy phân công');
   if (assignment.ma_khoa !== user.ma_khoa) throw forbidden('Chỉ thao tác dữ liệu thuộc Khoa mình');
   if (!assignment.ma_co_van) throw badRequest('Cần chọn cố vấn học tập trước khi gửi Phòng Công tác Sinh viên');
-  assertTransition('phanCong', assignment.trang_thai, PHAN_CONG.DA_PHAN_CONG);
+  assertTransition('phanCong', assignment.trang_thai, PHAN_CONG.CHO_GIAM_DOC_DUYET);
   await query('UPDATE PHAN_CONG SET trang_thai = :status, ten_truong_khoa = :ten_truong_khoa WHERE ma_phan_cong = :id', {
-    status: PHAN_CONG.DA_PHAN_CONG,
+    status: PHAN_CONG.CHO_GIAM_DOC_DUYET,
     ten_truong_khoa: user.ho_va_ten,
     id: ma_phan_cong
   });
@@ -195,9 +198,9 @@ export async function submitAllAssignments(user) {
       `SELECT pc.ma_phan_cong, pc.ma_co_van, l.ten_lop
        FROM PHAN_CONG pc
        JOIN LOP l ON l.ma_lop = pc.ma_lop
-       WHERE l.ma_khoa = ? AND pc.trang_thai = ?
+       WHERE l.ma_khoa = ? AND pc.trang_thai IN (?, ?)
        ORDER BY l.ten_lop`,
-      [user.ma_khoa, PHAN_CONG.DANG_PHAN_CONG]
+      [user.ma_khoa, PHAN_CONG.CHO_PHAN_CONG, PHAN_CONG.DA_PHAN_CONG]
     );
     if (!assignments.length) throw badRequest('Không có danh sách phân công đang chờ gửi');
 
@@ -211,7 +214,7 @@ export async function submitAllAssignments(user) {
        JOIN LOP l ON l.ma_lop = pc.ma_lop
        SET pc.trang_thai = ?, pc.ten_truong_khoa = ?
        WHERE l.ma_khoa = ? AND pc.trang_thai = ?`,
-      [PHAN_CONG.DA_PHAN_CONG, user.ho_va_ten, user.ma_khoa, PHAN_CONG.DANG_PHAN_CONG]
+      [PHAN_CONG.CHO_GIAM_DOC_DUYET, user.ho_va_ten, user.ma_khoa, PHAN_CONG.DA_PHAN_CONG]
     );
 
     return { message: `Đã gửi ${assignments.length} phân công cho Phòng Công tác Sinh viên` };
