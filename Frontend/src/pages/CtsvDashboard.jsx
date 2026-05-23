@@ -147,46 +147,6 @@ function classRank(value) {
   return match ? Number(match[1]) : 0;
 }
 
-function FilterableTable({ columns, rows }) {
-  const [filters, setFilters] = useState({});
-  const filteredRows = rows.filter((row) => columns.every((column) => {
-    const filter = String(filters[column.key] || '').trim().toLowerCase();
-    if (!filter) return true;
-    const value = column.renderText ? column.renderText(row) : row[column.key];
-    return String(value ?? '').toLowerCase().includes(filter);
-  }));
-
-  return (
-    <div className="table-wrap">
-      <table>
-        <thead>
-          <tr>{columns.map((column) => <th key={column.key}>{column.label}</th>)}</tr>
-          <tr className="filter-row">
-            {columns.map((column) => (
-              <th key={`${column.key}-filter`}>
-                <input
-                  aria-label={`Tìm kiếm ${column.label}`}
-                  value={filters[column.key] || ''}
-                  onChange={(event) => setFilters({ ...filters, [column.key]: event.target.value })}
-                />
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {filteredRows.length ? filteredRows.map((row) => (
-            <tr key={row.id || row.ma_phan_cong || row.ma_yeu_cau}>
-              {columns.map((column) => <td key={column.key}>{column.render ? column.render(row) : row[column.key]}</td>)}
-            </tr>
-          )) : (
-            <tr><td colSpan={columns.length}>Chưa có dữ liệu</td></tr>
-          )}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
 function downloadTable(rows, columns, fileName, type) {
   const escapeCell = (value) => `"${String(value ?? '').replaceAll('"', '""')}"`;
   if (type === 'xls') {
@@ -518,7 +478,7 @@ export default function CtsvDashboard() {
       {activeSection === 'students' ? (
         <section className="panel">
           <h2>Tài khoản và thông tin sinh viên</h2>
-          <DataTable columns={[
+          <DataTable pageSize={10} columns={[
             { key: 'ma_lop', label: 'Mã lớp' },
             { key: 'ten_lop', label: 'Tên lớp' },
             { key: 'ten_khoa', label: 'Tên khoa' },
@@ -563,7 +523,7 @@ export default function CtsvDashboard() {
                 </button>
               </div>
             </div>
-            <DataTable columns={[
+            <DataTable pageSize={4} columns={[
               { key: 'ma_khoa', label: 'Mã khoa' },
               { key: 'ten_khoa', label: 'Tên khoa' },
               { key: 'ten_truong_khoa', label: 'Trưởng khoa', render: (row) => row.ten_truong_khoa || '-' },
@@ -595,7 +555,7 @@ export default function CtsvDashboard() {
                 </button>
               </div>
             </div>
-            <DataTable columns={[
+            <DataTable pageSize={3} columns={[
               { key: 'ma_yeu_cau', label: 'Mã yêu cầu' },
               { key: 'ten_lop', label: 'Lớp' },
               { key: 'ten_khoa', label: 'Khoa', render: (row) => row.ten_khoa || row.ma_khoa },
@@ -624,7 +584,7 @@ export default function CtsvDashboard() {
         <>
           <section className="panel">
             <h2>Lịch sử phân công</h2>
-            <FilterableTable columns={[
+            <DataTable filterable pageSize={3} columns={[
               { key: 'ma_phan_cong', label: 'Mã phân công' },
               { key: 'ten_lop', label: 'Lớp' },
               { key: 'ten_khoa', label: 'Khoa' },
@@ -635,7 +595,7 @@ export default function CtsvDashboard() {
           </section>
           <section className="panel">
             <h2>Lịch sử thay thế</h2>
-            <FilterableTable columns={[
+            <DataTable filterable pageSize={3} columns={[
               { key: 'ma_yeu_cau', label: 'Mã yêu cầu' },
               { key: 'ten_lop', label: 'Lớp' },
               { key: 'ten_khoa', label: 'Khoa', render: (row) => row.ten_khoa || row.ma_khoa },
@@ -655,7 +615,7 @@ export default function CtsvDashboard() {
               <h2>Tài khoản sinh viên lớp {accountClass.ten_lop}</h2>
               <button className="secondary" type="button" onClick={() => setAccountClass(null)}>Đóng</button>
             </header>
-            <DataTable columns={[
+            <DataTable pageSize={10} columns={[
               { key: 'ma_sinh_vien', label: 'Mã số sinh viên' },
               { key: 'ho_va_ten', label: 'Họ và tên' },
               { key: 'email', label: 'Email' },
@@ -688,7 +648,7 @@ export default function CtsvDashboard() {
             {editingStudent ? (
               <StudentEditForm student={editingStudent} classes={classes} onCancel={() => setEditingStudent(null)} onSave={saveStudent} />
             ) : null}
-            <DataTable columns={[
+            <DataTable pageSize={10} columns={[
               { key: 'ma_sinh_vien', label: 'Mã sinh viên' },
               { key: 'ho_va_ten', label: 'Tên sinh viên' },
               { key: 'email', label: 'Email' },
@@ -710,7 +670,7 @@ export default function CtsvDashboard() {
               <h2>Danh sách lớp khoa {assignmentGroup.ten_khoa}</h2>
               <button className="secondary" type="button" onClick={() => setAssignmentGroup(null)}>Đóng</button>
             </header>
-            <DataTable columns={[
+            <DataTable pageSize={4} columns={[
               { key: 'ma_phan_cong', label: 'Mã phân công' },
               { key: 'ten_lop', label: 'Tên lớp' },
               { key: 'ten_khoa', label: 'Khoa' },

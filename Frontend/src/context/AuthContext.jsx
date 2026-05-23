@@ -8,14 +8,14 @@ export function AuthProvider({ children }) {
     const stored = localStorage.getItem('user');
     return stored ? JSON.parse(stored) : null;
   });
-  const [loading, setLoading] = useState(false);
+  // Bắt đầu với loading = true để chờ xác thực token từ cookie
+  const [loading, setLoading] = useState(true);
 
   async function login(credentials) {
     const { data } = await api.post('/auth/login', credentials);
-    localStorage.setItem('token', data.token);
-    localStorage.setItem('user', JSON.stringify(data.user));
-    setUser(data.user);
-    return data.user;
+    localStorage.setItem('user', JSON.stringify(data));
+    setUser(data);
+    return data;
   }
 
   async function refreshMe() {
@@ -30,16 +30,30 @@ export function AuthProvider({ children }) {
     await refreshMe();
   }
 
-  function logout() {
-    localStorage.removeItem('token');
+  async function logout() {
+    try {
+      await api.post('/auth/logout');
+    } catch (e) {
+      // Bỏ qua lỗi nếu logout thất bại (vd do mất mạng)
+    }
     localStorage.removeItem('user');
     setUser(null);
   }
 
   useEffect(() => {
-    if (!localStorage.getItem('token')) return;
-    setLoading(true);
-    refreshMe().catch(logout).finally(() => setLoading(false));
+    refreshMe()
+      .catch(() => {
+        localStorage.removeItem('user');
+        setUser(null);
+      })
+      .finally(() => setLoading(false));
+
+    const handleUnauthorized = () => {
+      localStorage.removeItem('user');
+      setUser(null);
+    };
+    window.addEventListener('auth:unauthorized', handleUnauthorized);
+    return () => window.removeEventListener('auth:unauthorized', handleUnauthorized);
   }, []);
 
   const value = useMemo(() => ({ user, loading, login, logout, changePassword }), [user, loading]);

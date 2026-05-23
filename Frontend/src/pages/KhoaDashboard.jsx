@@ -158,7 +158,7 @@ export default function KhoaDashboard() {
   const historyDetailRows = historyModal
     ? assignmentHistory.filter((assignment) => (
       assignment.nam_hoc === historyModal.nam_hoc
-        && (assignment.ten_truong_khoa || '-') === historyModal.ten_truong_khoa
+      && (assignment.ten_truong_khoa || '-') === historyModal.ten_truong_khoa
     ))
     : [];
   const hasWaitingAssignment = receivedAssignments.some((assignment) => assignment.trang_thai === WAITING);
@@ -206,7 +206,7 @@ export default function KhoaDashboard() {
 
           <section className="panel">
             <h2>Yêu cầu thay đổi</h2>
-            <DataTable columns={[
+            <DataTable pageSize={5} columns={[
               { key: 'ma_yeu_cau', label: 'Mã YC' },
               { key: 'ten_lop', label: 'Lớp' },
               { key: 'ten_co_van_cu', label: 'CVHT cũ' },
@@ -229,7 +229,7 @@ export default function KhoaDashboard() {
         <>
           <section className="panel">
             <h2>Lịch sử phân công</h2>
-            <DataTable columns={[
+            <DataTable pageSize={5} columns={[
               { key: 'nam_hoc', label: 'Năm học' },
               { key: 'ten_truong_khoa', label: 'Tên trưởng Khoa' }
             ]} rows={assignmentHistoryGroups} actionLabel="" actions={(row) => (
@@ -241,7 +241,7 @@ export default function KhoaDashboard() {
 
           <section className="panel">
             <h2>Lịch sử thay thế</h2>
-            <DataTable columns={[
+            <DataTable pageSize={5} columns={[
               { key: 'ma_yeu_cau', label: 'Mã yêu cầu' },
               { key: 'ten_lop', label: 'Lớp' },
               { key: 'ten_truong_khoa', label: 'Tên trưởng Khoa', render: (row) => row.ten_truong_khoa || '-' },
@@ -255,7 +255,7 @@ export default function KhoaDashboard() {
       ) : (
         <section className="panel">
           <h2>Danh sách nhân viên</h2>
-          <DataTable columns={[
+          <DataTable pageSize={5} columns={[
             { key: 'ma_co_van', label: 'Mã nhân viên' },
             { key: 'ho_va_ten', label: 'Họ tên' },
             { key: 'chuyen_nganh', label: 'Chuyên ngành' },
@@ -311,7 +311,7 @@ export default function KhoaDashboard() {
                 />
               ))}
             </datalist>
-            <DataTable columns={[
+            <DataTable pageSize={5} columns={[
               { key: 'ma_phan_cong', label: 'Mã' },
               { key: 'ten_lop', label: 'Lớp' },
               { key: 'chuyen_nganh', label: 'Chuyên ngành' },
@@ -346,7 +346,7 @@ export default function KhoaDashboard() {
               <h2>Danh sách lớp đã phân công {historyModal.nam_hoc}</h2>
               <button className="secondary" type="button" onClick={() => setHistoryModal(null)}>Đóng</button>
             </header>
-            <DataTable columns={[
+            <DataTable pageSize={5} columns={[
               { key: 'ma_phan_cong', label: 'Mã phân công' },
               { key: 'ten_lop', label: 'Lớp' },
               { key: 'chuyen_nganh', label: 'Chuyên ngành' },

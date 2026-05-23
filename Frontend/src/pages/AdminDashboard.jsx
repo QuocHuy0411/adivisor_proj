@@ -312,6 +312,7 @@ export default function AdminDashboard() {
           <section className="panel">
             <h2>Danh sách tài khoản nhân viên</h2>
             <DataTable
+              pageSize={5}
               columns={[
                 { key: 'ma_don_vi', label: 'Mã phòng/Khoa' },
                 { key: 'ten_don_vi', label: 'Tên phòng/Khoa' }
@@ -326,6 +327,7 @@ export default function AdminDashboard() {
           <section className="panel">
             <h2>Danh sách thông tin cố vấn học tập</h2>
             <DataTable
+              pageSize={5}
               columns={[
                 { key: 'ma_don_vi', label: 'Mã khoa' },
                 { key: 'ten_don_vi', label: 'Tên khoa' }
@@ -350,6 +352,7 @@ export default function AdminDashboard() {
               <AccountEditForm account={editingAccount} onCancel={() => setEditingAccount(null)} onSave={saveAccount} />
             ) : null}
             <DataTable
+              pageSize={5}
               columns={[
                 { key: 'ma', label: 'Mã nhân viên' },
                 { key: 'ho_va_ten', label: 'Họ tên' },
@@ -396,6 +399,7 @@ export default function AdminDashboard() {
               <AdvisorEditForm advisor={editingAdvisor} faculties={advisorGroups} onCancel={() => setEditingAdvisor(null)} onSave={saveAdvisor} />
             ) : null}
             <DataTable
+              pageSize={5}
               columns={[
                 { key: 'ma_co_van', label: 'Mã nhân viên' },
                 { key: 'ho_va_ten', label: 'Họ và tên' },

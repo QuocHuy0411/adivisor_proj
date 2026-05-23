@@ -1,12 +1,14 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 
 function searchableValue(column, row) {
   if (column.renderText) return column.renderText(row);
   return row[column.key];
 }
 
-export default function DataTable({ columns, rows, actions, actionLabel = 'Thao tác', filterable = false }) {
+export default function DataTable({ columns, rows, actions, actionLabel = 'Thao tác', filterable = false, pageSize }) {
   const [filters, setFilters] = useState({});
+  const [currentPage, setCurrentPage] = useState(1);
+
   const visibleRows = useMemo(() => {
     if (!filterable) return rows;
     return rows.filter((row) => columns.every((column) => {
@@ -15,6 +17,18 @@ export default function DataTable({ columns, rows, actions, actionLabel = 'Thao 
       return String(searchableValue(column, row) ?? '').toLowerCase().includes(filter);
     }));
   }, [columns, filterable, filters, rows]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filters, rows]);
+
+  const paginatedRows = useMemo(() => {
+    if (!pageSize) return visibleRows;
+    const start = (currentPage - 1) * pageSize;
+    return visibleRows.slice(start, start + pageSize);
+  }, [visibleRows, pageSize, currentPage]);
+
+  const totalPages = pageSize ? Math.max(1, Math.ceil(visibleRows.length / pageSize)) : 1;
 
   return (
     <div className="table-wrap">
@@ -40,9 +54,9 @@ export default function DataTable({ columns, rows, actions, actionLabel = 'Thao 
           ) : null}
         </thead>
         <tbody>
-          {visibleRows.length === 0 ? (
+          {paginatedRows.length === 0 ? (
             <tr><td colSpan={columns.length + (actions ? 1 : 0)}>Chưa có dữ liệu</td></tr>
-          ) : visibleRows.map((row) => (
+          ) : paginatedRows.map((row) => (
             <tr key={row.id || row.ma_tai_khoan || row.ma_sinh_vien || row.ma_co_van || row.ma_lop || row.ma_phan_cong || row.ma_yeu_cau || row.ma_thong_bao || row.ma_don_vi || row.ma}>
               {columns.map((column) => (
                 <td key={column.key}>{column.render ? column.render(row) : row[column.key]}</td>
@@ -52,6 +66,13 @@ export default function DataTable({ columns, rows, actions, actionLabel = 'Thao 
           ))}
         </tbody>
       </table>
+      {pageSize && (
+        <div className="pagination" style={{ display: 'flex', justifyContent: 'center', gap: '0.5rem', padding: '1rem', alignItems: 'center' }}>
+          <button className="secondary" disabled={currentPage === 1} onClick={() => setCurrentPage(p => Math.max(1, p - 1))}>Trước</button>
+          <span>Trang {currentPage} / {totalPages}</span>
+          <button className="secondary" disabled={currentPage === totalPages} onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}>Sau</button>
+        </div>
+      )}
     </div>
   );
 }

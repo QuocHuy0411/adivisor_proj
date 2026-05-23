@@ -43,7 +43,7 @@ export default function NotificationsPage() {
   return (
     <AppLayout title="Thông báo">
       <section className="panel">
-        <DataTable columns={[
+        <DataTable pageSize={10} columns={[
           { key: 'ngay_gui', label: 'Ngày gửi' },
           { key: 'tieu_de', label: 'Tiêu đề' },
           { key: 'noi_dung', label: 'Nội dung' }
@@ -61,7 +61,7 @@ export default function NotificationsPage() {
               <h2>Danh sách phân công năm học {selectedYear}</h2>
               <button className="secondary" type="button" onClick={() => setSelectedYear(null)}>Đóng</button>
             </header>
-            <DataTable columns={[
+            <DataTable pageSize={10} columns={[
               { key: 'ma_phan_cong', label: 'Mã phân công' },
               { key: 'ten_lop', label: 'Lớp' },
               { key: 'chuyen_nganh', label: 'Chuyên ngành' },

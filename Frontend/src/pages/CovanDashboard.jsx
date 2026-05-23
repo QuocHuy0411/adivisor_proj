@@ -48,7 +48,7 @@ export default function CovanDashboard() {
       <Toast message={error || message} type={error ? 'error' : 'success'} onClose={() => { setMessage(''); setError(''); }} />
       <section className="panel">
         <h2>Lớp đang phụ trách</h2>
-        <DataTable columns={[
+        <DataTable pageSize={1} columns={[
           { key: 'ma_lop', label: 'Mã lớp' },
           { key: 'ten_lop', label: 'Tên lớp' },
           { key: 'chuyen_nganh', label: 'Chuyên ngành' },
@@ -64,7 +64,7 @@ export default function CovanDashboard() {
       </section>
       <section className="panel">
         <h2>Sinh viên lớp đang chọn</h2>
-        <DataTable columns={[
+        <DataTable pageSize={5} columns={[
           { key: 'ma_sinh_vien', label: 'Mã sinh viên' },
           { key: 'ho_va_ten', label: 'Họ tên' },
           { key: 'email', label: 'Email' },
@@ -73,7 +73,7 @@ export default function CovanDashboard() {
       </section>
       <section className="panel">
         <h2>Yêu cầu đã gửi</h2>
-        <DataTable columns={[
+        <DataTable pageSize={3} columns={[
           { key: 'ma_yeu_cau', label: 'Mã yêu cầu' },
           { key: 'ten_lop', label: 'Lớp' },
           { key: 'ly_do', label: 'Lý do' },

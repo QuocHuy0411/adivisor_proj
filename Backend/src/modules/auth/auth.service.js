@@ -17,6 +17,18 @@ async function ensureLoginAttemptTable() {
   );
 }
 
+async function ensureRefreshTokensTable() {
+  await query(
+    `CREATE TABLE IF NOT EXISTS REFRESH_TOKENS (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      ma_tai_khoan VARCHAR(100) NOT NULL,
+      token VARCHAR(500) NOT NULL,
+      expires_at DATETIME NOT NULL,
+      FOREIGN KEY (ma_tai_khoan) REFERENCES TAI_KHOAN(ma_tai_khoan) ON DELETE CASCADE
+    )`
+  );
+}
+
 async function countLoginFailuresToday(ten_tai_khoan) {
   await ensureLoginAttemptTable();
   const rows = await query(
@@ -81,9 +93,18 @@ export async function buildSession(account) {
     loai_tai_khoan: account.loai_tai_khoan,
     ...profile
   };
-  const token = jwt.sign(payload, env.jwtSecret, { expiresIn: env.jwtExpiresIn });
+  const accessToken = jwt.sign(payload, env.jwtSecret, { expiresIn: env.jwtExpiresIn });
+  const refreshToken = jwt.sign({ ma_tai_khoan: account.ma_tai_khoan, type: 'refresh' }, env.jwtRefreshSecret, { expiresIn: env.jwtRefreshExpiresIn });
+
+  await ensureRefreshTokensTable();
+  await query('INSERT INTO REFRESH_TOKENS (ma_tai_khoan, token, expires_at) VALUES (:ma_tai_khoan, :token, DATE_ADD(NOW(), INTERVAL 7 DAY))', {
+    ma_tai_khoan: account.ma_tai_khoan,
+    token: refreshToken
+  });
+
   return {
-    token,
+    accessToken,
+    refreshToken,
     user: {
       ma_tai_khoan: account.ma_tai_khoan,
       ten_tai_khoan: account.ten_tai_khoan,
@@ -291,4 +312,37 @@ export async function resetPassword({ reset_token, mat_khau_moi, nhap_lai_mat_kh
 
 export async function me(user) {
   return buildSession(user);
+}
+
+export async function logoutServer(refreshToken) {
+  if (!refreshToken) return;
+  await ensureRefreshTokensTable();
+  await query('DELETE FROM REFRESH_TOKENS WHERE token = :token', { token: refreshToken });
+}
+
+export async function refreshAccessToken(refreshToken) {
+  if (!refreshToken) throw new HttpError(401, 'Không có refresh token');
+  
+  await ensureRefreshTokensTable();
+  const rows = await query('SELECT * FROM REFRESH_TOKENS WHERE token = :token AND expires_at > NOW()', { token: refreshToken });
+  if (rows.length === 0) throw new HttpError(401, 'Refresh token không hợp lệ hoặc đã hết hạn');
+
+  try {
+    const decoded = jwt.verify(refreshToken, env.jwtRefreshSecret);
+    const accountRows = await query('SELECT * FROM TAI_KHOAN WHERE ma_tai_khoan = :id', { id: decoded.ma_tai_khoan });
+    const account = accountRows[0];
+    
+    if (!account || !account.is_active) {
+      await query('DELETE FROM REFRESH_TOKENS WHERE token = :token', { token: refreshToken });
+      throw forbidden('Tài khoản đã bị khóa hoặc ngừng hoạt động');
+    }
+
+    // Xóa token cũ để sinh ra token mới (Rotation)
+    await query('DELETE FROM REFRESH_TOKENS WHERE token = :token', { token: refreshToken });
+    
+    return await buildSession(account);
+  } catch (error) {
+    await query('DELETE FROM REFRESH_TOKENS WHERE token = :token', { token: refreshToken });
+    throw new HttpError(401, 'Refresh token không hợp lệ');
+  }
 }

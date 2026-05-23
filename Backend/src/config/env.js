@@ -10,10 +10,12 @@ export const env = {
     port: Number(process.env.DB_PORT || 3306),
     database: process.env.DB_NAME || 'adivisor',
     user: process.env.DB_USER || 'adivisor',
-    password: process.env.DB_PASSWORD || 'adivisor_password'
+    password: process.env.DB_PASSWORD ?? 'adivisor_password'
   },
   jwtSecret: process.env.JWT_SECRET || 'dev_secret_change_me',
-  jwtExpiresIn: process.env.JWT_EXPIRES_IN || '8h',
+  jwtExpiresIn: process.env.JWT_EXPIRES_IN || '15m',
+  jwtRefreshSecret: process.env.JWT_REFRESH_SECRET || 'dev_refresh_secret_change_me',
+  jwtRefreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '7d',
   passwordResetExpiresIn: process.env.PASSWORD_RESET_EXPIRES_IN || '15m',
   passwordResetOtpExpiresIn: process.env.PASSWORD_RESET_OTP_EXPIRES_IN || '5m',
   smtp: {

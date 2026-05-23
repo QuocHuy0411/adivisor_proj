@@ -29,8 +29,7 @@ async function loadActiveProfile(account) {
 
 export async function authenticate(req, res, next) {
   try {
-    const header = req.headers.authorization || '';
-    const token = header.startsWith('Bearer ') ? header.slice(7) : null;
+    const token = req.cookies?.accessToken;
     if (!token) throw new HttpError(401, 'Chưa đăng nhập');
 
     const payload = jwt.verify(token, env.jwtSecret);
