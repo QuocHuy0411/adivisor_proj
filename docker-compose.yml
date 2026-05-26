@@ -77,6 +77,8 @@ services:
     environment:
       PMA_HOST: mysql
       PMA_PORT: 3306
+      PMA_USER: root
+      PMA_PASSWORD: root_password
     ports:
       - "${PHPMYADMIN_PORT:-8081}:80"
 

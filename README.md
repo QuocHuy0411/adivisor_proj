@@ -64,6 +64,8 @@ Sau khi chạy thành công:
 - Frontend: `http://localhost:5173`
 - Backend API: `http://localhost:5000/api`
 - phpMyAdmin: `http://localhost:8081`
+- **phpMyAdmin login**: Use MySQL root credentials (username `root`, password from `MYSQL_ROOT_PASSWORD` environment, default `root_password`). The application admin user (`admin`) is not a MySQL user.
+
 - MySQL: `localhost:3306`
 
 Backend sẽ tự chạy script khởi tạo database khi container khởi động.
