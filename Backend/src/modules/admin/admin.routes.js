@@ -61,6 +61,10 @@ router.post('/faculty-heads/import', upload.single('file'), asyncHandler(async (
   res.status(201).json(await service.importFacultyHeadAccounts(req.file));
 }));
 
+router.post('/ctsv/import', upload.single('file'), asyncHandler(async (req, res) => {
+  res.status(201).json(await service.importCtsvAccounts(req.file));
+}));
+
 router.post('/advisors/info/import', upload.single('file'), asyncHandler(async (req, res) => {
   res.status(201).json(await service.importAdvisorInfo(req.file));
 }));

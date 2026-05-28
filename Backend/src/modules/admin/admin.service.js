@@ -358,6 +358,49 @@ export async function importFacultyHeadAccounts(file) {
   return { message: 'Import tài khoản Trưởng Khoa thành công', created };
 }
 
+export async function importCtsvAccounts(file) {
+  if (!file) throw badRequest('Vui lòng tải lên file CSV');
+  const records = parseCsv(file.buffer);
+  let created = 0;
+
+  for (const row of records) {
+    const payload = {
+      ma_nhan_vien: valueOf(row, ['ma_nhan_vien', 'Ma nhan vien', 'Mã nhân viên']),
+      ho_va_ten: valueOf(row, ['ho_va_ten', 'Ho ten', 'Ho va ten', 'Họ tên', 'Họ và tên', 'Ten nhan vien', 'Tên nhân viên']),
+      email: valueOf(row, ['email', 'Email'])
+    };
+    if (!payload.ma_nhan_vien || !payload.ho_va_ten || !payload.email) {
+      throw badRequest('CSV nhân viên CTSV cần có: mã nhân viên, họ và tên, email');
+    }
+
+    await transaction(async (connection) => {
+      const [existingCtsv] = await connection.execute(
+        'SELECT ma_nhan_vien FROM NHAN_VIEN_CTSV WHERE ma_nhan_vien = ?',
+        [payload.ma_nhan_vien]
+      );
+      if (existingCtsv[0]) throw badRequest(`Nhân viên CTSV ${payload.ma_nhan_vien} đã tồn tại`);
+      await assertAccountAvailable(connection, {
+        ten_tai_khoan: payload.ma_nhan_vien,
+        email: payload.email
+      });
+
+      const accountId = await createAccount(connection, {
+        ten_tai_khoan: payload.ma_nhan_vien,
+        email: payload.email,
+        role: 'ctsv',
+        defaultPassword: defaultPasswordForRole('ctsv')
+      });
+      await connection.execute(
+        'INSERT INTO NHAN_VIEN_CTSV (ma_nhan_vien, ma_tai_khoan, ho_va_ten) VALUES (?, ?, ?)',
+        [payload.ma_nhan_vien, accountId, payload.ho_va_ten]
+      );
+    });
+    created += 1;
+  }
+
+  return { message: 'Import tài khoản nhân viên CTSV thành công', created };
+}
+
 export async function createAdvisorInfo(payload) {
   const required = ['ma_co_van', 'ho_va_ten', 'so_dien_thoai', 'ten_khoa', 'chuyen_nganh'];
   for (const field of required) {

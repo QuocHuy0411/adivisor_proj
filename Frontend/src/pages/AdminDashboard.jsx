@@ -10,6 +10,7 @@ const adminNav = [
 
 const csvNotes = {
   heads: 'File CSV bắt buộc gồm: Mã nhân viên, Họ và tên, Email, Khoa. Khoa phải ghi đầy đủ, ví dụ: Công nghệ thông tin.',
+  ctsv: 'File CSV bắt buộc gồm: Mã nhân viên, Họ và tên, Email. Tên tài khoản là mã nhân viên (dùng để đăng nhập), mật khẩu là ctsv. Bắt buộc đổi mật khẩu lần đầu để sử dụng web.',
   advisors: 'File CSV bắt buộc gồm: Mã nhân viên, Họ và tên, Số điện thoại, Email, Khoa, Chuyên ngành, Ưu tiên. Khoa phải ghi đầy đủ, ví dụ: Công nghệ thông tin.'
 };
 
@@ -283,11 +284,21 @@ export default function AdminDashboard() {
       </Toast>
 
       {activeSection === 'create' ? (
-        <section className="grid-2">
+        <section className="grid-3">
           <CsvCreatePanel
             title="Tạo tài khoản Trưởng Khoa"
             note={csvNotes.heads}
             endpoint="/admin/faculty-heads/import"
+            onDone={afterCreate}
+            onError={(nextError) => {
+              setError(nextError);
+              setMessage('');
+            }}
+          />
+          <CsvCreatePanel
+            title="Tạo tài khoản nhân viên phòng Công tác sinh viên"
+            note={csvNotes.ctsv}
+            endpoint="/admin/ctsv/import"
             onDone={afterCreate}
             onError={(nextError) => {
               setError(nextError);
