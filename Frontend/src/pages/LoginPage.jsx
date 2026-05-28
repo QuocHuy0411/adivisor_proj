@@ -30,8 +30,7 @@ export default function LoginPage() {
   return (
     <main className="auth-page">
       <section className="auth-panel">
-        <h1>Adivisor</h1>
-        <p>Hệ thống phân công Cố vấn học tập</p>
+        <h1>Phân công<br />cố vấn học tập</h1>
         <form onSubmit={submit}>
           <label>
             Tên tài khoản

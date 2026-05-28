@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { api } from '../api/client.js';
 import AppLayout from '../components/AppLayout.jsx';
@@ -17,6 +17,13 @@ const sectionTitle = {
   employees: 'Danh sách nhân viên',
   history: 'Lịch sử phân công'
 };
+
+const SearchIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="11" cy="11" r="8"></circle>
+    <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+  </svg>
+);
 
 function IconButton({ label, icon, onClick }) {
   return (
@@ -139,6 +146,29 @@ export default function KhoaDashboard() {
   const receivedAssignments = assignments.filter((assignment) => (
     ASSIGNMENT_RECEIVED_STATUSES.includes(assignment.trang_thai)
   ));
+
+  const [seenDetails, setSeenDetails] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem('seen_khoa_assignment_details') || '[]');
+    } catch {
+      return [];
+    }
+  });
+
+  const hasUnreadDetails = useMemo(() => {
+    const waitingList = receivedAssignments.filter((a) => a.trang_thai === 'Chờ phân công');
+    return waitingList.some((a) => !seenDetails.includes(a.ma_phan_cong));
+  }, [receivedAssignments, seenDetails]);
+
+  function handleOpenAssignmentModal() {
+    setAssignmentModalOpen(true);
+    const waitingList = receivedAssignments.filter((a) => a.trang_thai === 'Chờ phân công');
+    const nextSeen = Array.from(new Set([...seenDetails, ...waitingList.map((a) => a.ma_phan_cong)]));
+    setSeenDetails(nextSeen);
+    localStorage.setItem('seen_khoa_assignment_details', JSON.stringify(nextSeen));
+    window.dispatchEvent(new Event('local-storage-update'));
+  }
+
   const view = searchParams.get('view');
   const activeSection = ['employees', 'history'].includes(view) ? view : 'assignment';
   const assignmentHistory = assignments.filter((assignment) => ASSIGNMENT_HISTORY_STATUSES.includes(assignment.trang_thai));
@@ -194,8 +224,28 @@ export default function KhoaDashboard() {
                     <td>{receivedAssignments.length ? 'Có yêu cầu phân công' : 'Chưa có yêu cầu'}</td>
                     <td>{assignmentSummaryStatus}</td>
                     <td>
-                      <button type="button" disabled={!receivedAssignments.length} onClick={() => setAssignmentModalOpen(true)}>
+                      <button
+                        type="button"
+                        disabled={!receivedAssignments.length}
+                        onClick={handleOpenAssignmentModal}
+                        style={{ position: 'relative' }}
+                      >
                         Xem yêu cầu
+                        {hasUnreadDetails && (
+                          <span
+                            style={{
+                              position: 'absolute',
+                              top: '-4px',
+                              right: '-4px',
+                              width: '10px',
+                              height: '10px',
+                              backgroundColor: '#ef4444',
+                              borderRadius: '50%',
+                              border: '2px solid #ffffff',
+                              display: 'block'
+                            }}
+                          />
+                        )}
                       </button>
                     </td>
                   </tr>
@@ -234,7 +284,7 @@ export default function KhoaDashboard() {
               { key: 'ten_truong_khoa', label: 'Tên trưởng Khoa' }
             ]} rows={assignmentHistoryGroups} actionLabel="" actions={(row) => (
               <div className="icon-actions">
-                <IconButton icon="🔍" label="Xem danh sách lớp" onClick={() => setHistoryModal(row)} />
+                <IconButton icon={<SearchIcon />} label="Xem danh sách lớp" onClick={() => setHistoryModal(row)} />
               </div>
             )} />
           </section>
