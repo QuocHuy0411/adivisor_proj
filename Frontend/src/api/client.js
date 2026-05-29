@@ -5,6 +5,18 @@ export const api = axios.create({
   withCredentials: true
 });
 
+api.interceptors.request.use(
+  (config) => {
+    if (config.url && (config.url.startsWith('/auth') || config.url.startsWith('auth'))) {
+      config.baseURL = import.meta.env.VITE_SPRING_BOOT_API_URL || 'http://localhost:8080/api';
+    }
+    return config;
+  },
+  (error) => {
+    return Promise.reject(error);
+  }
+);
+
 let isRefreshing = false;
 let failedQueue = [];
 
