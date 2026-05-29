@@ -531,7 +531,7 @@ export async function rejectAllAssignments() {
 
 export async function listReplacementRequests() {
   return query(
-    `SELECT yc.*, pc.ma_lop, pc.ma_co_van AS ma_co_van_moi, l.ten_lop, l.ma_khoa,
+    `SELECT yc.*, pc.ma_lop, pc.nam_hoc, pc.ma_co_van AS ma_co_van_moi, l.ten_lop, l.ma_khoa,
             cu.ho_va_ten AS ten_co_van_cu,
             CASE WHEN moi_tk.ma_tai_khoan IS NULL THEN NULL ELSE moi.ho_va_ten END AS ten_co_van_moi,
             k.ten_khoa, COALESCE(yc.ten_truong_khoa, tk.ho_va_ten) AS ten_truong_khoa
@@ -594,6 +594,7 @@ export async function approveReplacement(user, id) {
       recipients: [
         { loai_nguoi_nhan: 'lop', ma_doi_tuong: request.ma_lop },
         { loai_nguoi_nhan: 'khoa', ma_doi_tuong: request.ma_khoa },
+        { loai_nguoi_nhan: 'ctsv', ma_doi_tuong: 'CTSV' },
         { loai_nguoi_nhan: 'covan', ma_doi_tuong: request.ma_co_van },
         { loai_nguoi_nhan: 'covan', ma_doi_tuong: request.ma_co_van_moi }
       ]

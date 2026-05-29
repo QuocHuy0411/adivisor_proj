@@ -485,6 +485,7 @@ export default function CtsvDashboard() {
       { label: 'Khoa', value: (row) => row.ten_khoa },
       { label: 'Cố vấn cũ', value: (row) => row.ten_co_van_cu || '' },
       { label: 'Cố vấn mới', value: (row) => row.ten_co_van_moi || '' },
+      { label: 'Lý do dừng', value: (row) => row.ly_do || '' },
       { label: 'Trạng thái', value: (row) => row.trang_thai }
     ], 'danh-sach-yeu-cau-thay-the', replacementExportType);
   }
@@ -598,6 +599,7 @@ export default function CtsvDashboard() {
               { key: 'ten_khoa', label: 'Khoa', render: (row) => row.ten_khoa || row.ma_khoa },
               { key: 'ten_co_van_cu', label: 'Cố vấn cũ' },
               { key: 'ten_co_van_moi', label: 'Cố vấn mới', render: (row) => row.ten_co_van_moi || '-' },
+              { key: 'ly_do', label: 'Lý do dừng' },
               { key: 'trang_thai', label: 'Trạng thái' }
             ]} rows={pendingRequests} filterable actionLabel="" actions={(row) => (
               <>
@@ -635,9 +637,9 @@ export default function CtsvDashboard() {
               { key: 'ma_yeu_cau', label: 'Mã yêu cầu' },
               { key: 'ten_lop', label: 'Lớp' },
               { key: 'ten_khoa', label: 'Khoa', render: (row) => row.ten_khoa || row.ma_khoa },
-              { key: 'ten_truong_khoa', label: 'Trưởng khoa', render: (row) => row.ten_truong_khoa || '-' },
               { key: 'ten_co_van_cu', label: 'Cố vấn cũ' },
               { key: 'ten_co_van_moi', label: 'Cố vấn mới', render: (row) => row.ten_co_van_moi || '-' },
+              { key: 'ly_do', label: 'Lý do dừng' },
               { key: 'nam_hoc', label: 'Năm học', render: (row) => row.nam_hoc || '-' }
             ]} rows={replacementHistory} />
           </section>

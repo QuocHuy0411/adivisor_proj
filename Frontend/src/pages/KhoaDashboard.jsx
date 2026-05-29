@@ -261,6 +261,7 @@ export default function KhoaDashboard() {
               { key: 'ten_lop', label: 'Lớp' },
               { key: 'ten_co_van_cu', label: 'CVHT cũ' },
               { key: 'ten_co_van_moi', label: 'CVHT mới' },
+              { key: 'ly_do', label: 'Lý do dừng' },
               { key: 'trang_thai', label: 'Trạng thái' }
             ]} rows={pendingReplacementRequests} actions={(row) => (
               <>
