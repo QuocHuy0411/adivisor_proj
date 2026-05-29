@@ -8,13 +8,12 @@ import com.example.backendspringboot.dto.request.VerifyResetOtpRequest;
 import com.example.backendspringboot.dto.response.AuthenticationResponse;
 import com.example.backendspringboot.service.AuthenticationService;
 import com.example.backendspringboot.service.OtpService;
-import jakarta.servlet.http.Cookie;
+import com.example.backendspringboot.util.CookieUtil;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.ResponseCookie;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -45,28 +44,29 @@ public class AuthenticationController {
 
     @PostMapping("/logout")
     public Map<String, String> logout(HttpServletRequest request, HttpServletResponse response) {
-        authenticationService.logout(readCookie(request, "refreshToken"));
-        clearCookie(response, "accessToken");
-        clearCookie(response, "refreshToken");
+        authenticationService.logout(CookieUtil.readCookie(request, "refreshToken"));
+        CookieUtil.clearCookie(response, "accessToken", secureCookie);
+        CookieUtil.clearCookie(response, "refreshToken", secureCookie);
         return Map.of("message", "Dang xuat thanh cong");
     }
 
     @PostMapping("/refresh-token")
     public Map<String, Object> refresh(HttpServletRequest request, HttpServletResponse response) {
-        AuthenticationResponse session = authenticationService.refresh(readCookie(request, "refreshToken"));
+        AuthenticationResponse session = authenticationService.refresh(
+                CookieUtil.readCookie(request, "refreshToken"));
         attachSessionCookies(response, session);
         return session.getUser();
     }
 
     @GetMapping("/me")
     public Map<String, Object> me(HttpServletRequest request) {
-        return authenticationService.me(readCookie(request, "accessToken"));
+        return authenticationService.me(CookieUtil.readCookie(request, "accessToken"));
     }
 
     @PostMapping("/change-password")
     public Map<String, String> changePassword(HttpServletRequest request,
                                                @Valid @RequestBody ChangePasswordRequest payload) {
-        authenticationService.changePassword(readCookie(request, "accessToken"), payload);
+        authenticationService.changePassword(CookieUtil.readCookie(request, "accessToken"), payload);
         return Map.of("message", "Doi mat khau thanh cong");
     }
 
@@ -87,45 +87,12 @@ public class AuthenticationController {
         return otpService.resetPassword(request);
     }
 
-    // ==================== Cookie helpers ====================
+    // ==================== Private helpers ====================
 
     private void attachSessionCookies(HttpServletResponse response, AuthenticationResponse session) {
-        addCookie(response, "accessToken", session.getAccessToken(), Duration.ofHours(8));
-        addCookie(response, "refreshToken", session.getRefreshToken(), Duration.ofDays(7));
-    }
-
-    private void addCookie(HttpServletResponse response, String name, String value, Duration maxAge) {
-        ResponseCookie cookie = ResponseCookie.from(name, value)
-                .httpOnly(true)
-                .secure(secureCookie)
-                .sameSite("Strict")
-                .path("/")
-                .maxAge(maxAge)
-                .build();
-        response.addHeader("Set-Cookie", cookie.toString());
-    }
-
-    private void clearCookie(HttpServletResponse response, String name) {
-        ResponseCookie cookie = ResponseCookie.from(name, "")
-                .httpOnly(true)
-                .secure(secureCookie)
-                .sameSite("Strict")
-                .path("/")
-                .maxAge(0)
-                .build();
-        response.addHeader("Set-Cookie", cookie.toString());
-    }
-
-    private String readCookie(HttpServletRequest request, String name) {
-        Cookie[] cookies = request.getCookies();
-        if (cookies == null) {
-            return null;
-        }
-        for (Cookie cookie : cookies) {
-            if (name.equals(cookie.getName())) {
-                return cookie.getValue();
-            }
-        }
-        return null;
+        CookieUtil.addCookie(response, "accessToken", session.getAccessToken(),
+                Duration.ofHours(8), secureCookie);
+        CookieUtil.addCookie(response, "refreshToken", session.getRefreshToken(),
+                Duration.ofDays(7), secureCookie);
     }
 }

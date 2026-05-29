@@ -9,8 +9,6 @@ import com.example.backendspringboot.exception.MyAppException;
 import com.example.backendspringboot.repository.AccountRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.mail.SimpleMailMessage;
-import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -38,9 +36,9 @@ public class OtpService {
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
     private final AccountRepository accountRepository;
-    private final JavaMailSender mailSender;
+    private final SendMailService sendMailService;
     private final com.fasterxml.jackson.databind.ObjectMapper objectMapper;
-    private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
+    private final BCryptPasswordEncoder passwordEncoder;
 
     @Value("${jwt.signerKey}")
     private String signerKey;
@@ -240,22 +238,10 @@ public class OtpService {
     }
 
     /**
-     * Send OTP email via Spring JavaMailSender
+     * Send OTP email via SendMailService using HTML template
      */
     private void sendPasswordResetOtp(String email, String otp) {
-        try {
-            SimpleMailMessage message = new SimpleMailMessage();
-            message.setFrom(smtpFrom);
-            message.setTo(email);
-            message.setSubject("Ma OTP dat lai mat khau Adivisor");
-            message.setText(String.format(
-                    "Ma OTP dat lai mat khau cua ban la %s. Ma co hieu luc trong %ds. "
-                            + "Neu ban khong yeu cau, vui long bo qua email nay.",
-                    otp, otpExpiresInSeconds));
-            mailSender.send(message);
-        } catch (Exception e) {
-            throw new MyAppException(ErrorCode.MAIL_SEND_FAILED);
-        }
+        sendMailService.sendOtpMail(email, otp, otpExpiresInSeconds);
     }
 
     // ==================== JWT helpers (matching JwtService pattern) ====================
