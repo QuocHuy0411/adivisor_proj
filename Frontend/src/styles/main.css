@@ -140,6 +140,53 @@ textarea {
   font-weight: 700;
 }
 
+.auth-divider {
+  align-items: center;
+  color: #64748b;
+  display: grid;
+  font-size: 13px;
+  font-weight: 700;
+  gap: 12px;
+  grid-template-columns: 1fr auto 1fr;
+  text-transform: uppercase;
+}
+
+.auth-divider::before,
+.auth-divider::after {
+  background: #dbe3ef;
+  content: "";
+  height: 1px;
+}
+
+.google-login-button {
+  align-items: center;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  color: #1f2937;
+  display: inline-flex;
+  font-weight: 700;
+  gap: 10px;
+  justify-content: center;
+  min-height: 44px;
+  width: 100%;
+}
+
+.google-login-button:hover {
+  background: #f8fafc;
+}
+
+.google-mark {
+  align-items: center;
+  border: 1px solid #dbe3ef;
+  border-radius: 50%;
+  color: #2563eb;
+  display: inline-flex;
+  font-weight: 800;
+  height: 24px;
+  justify-content: center;
+  width: 24px;
+}
+
 .panel form {
   display: grid;
   gap: 14px;

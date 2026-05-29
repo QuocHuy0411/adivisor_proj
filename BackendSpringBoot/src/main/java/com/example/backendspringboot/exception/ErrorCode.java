@@ -17,6 +17,7 @@ public enum ErrorCode {
     EMAIL_NOT_FOUND(4009, "Email khong ton tai trong he thong", HttpStatus.BAD_REQUEST),
     SMTP_NOT_CONFIGURED(4010, "Chua cau hinh SMTP Gmail de gui ma OTP", HttpStatus.BAD_REQUEST),
     INVALID_OTP(4011, "Ma OTP khong hop le", HttpStatus.BAD_REQUEST),
+    INVALID_PARAMETER(1006, "Invalid request parameters", HttpStatus.BAD_REQUEST),
     OTP_EXPIRED(4012, "Ma OTP da het han hoac khong hop le", HttpStatus.BAD_REQUEST),
     OTP_WRONG(4013, "Ma OTP khong dung", HttpStatus.BAD_REQUEST),
     INVALID_RESET_TOKEN(4014, "Ma dat lai mat khau khong hop le", HttpStatus.BAD_REQUEST),
