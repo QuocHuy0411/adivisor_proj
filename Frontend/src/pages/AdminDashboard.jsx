@@ -10,8 +10,39 @@ const adminNav = [
 
 const csvNotes = {
   heads: 'File CSV bắt buộc gồm: Mã nhân viên, Họ và tên, Email, Khoa. Khoa phải ghi đầy đủ, ví dụ: Công nghệ thông tin.',
+  ctsv: 'File CSV bắt buộc gồm: Mã nhân viên, Họ và tên, Email. Tên tài khoản là mã nhân viên (dùng để đăng nhập), mật khẩu là ctsv. Bắt buộc đổi mật khẩu lần đầu để sử dụng web.',
   advisors: 'File CSV bắt buộc gồm: Mã nhân viên, Họ và tên, Số điện thoại, Email, Khoa, Chuyên ngành, Ưu tiên. Khoa phải ghi đầy đủ, ví dụ: Công nghệ thông tin.'
 };
+
+const LockClosedIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+    <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+  </svg>
+);
+
+const LockOpenIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+    <path d="M7 11V7a5 5 0 0 1 9.9-1"></path>
+  </svg>
+);
+
+const PenIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M12 20h9"></path>
+    <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
+  </svg>
+);
+
+const TrashIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+    <polyline points="3 6 5 6 21 6"></polyline>
+    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+    <line x1="10" y1="11" x2="10" y2="17"></line>
+    <line x1="14" y1="11" x2="14" y2="17"></line>
+  </svg>
+);
 
 function IconButton({ label, icon, tone, onClick }) {
   return (
@@ -283,11 +314,21 @@ export default function AdminDashboard() {
       </Toast>
 
       {activeSection === 'create' ? (
-        <section className="grid-2">
+        <section className="grid-3">
           <CsvCreatePanel
             title="Tạo tài khoản Trưởng Khoa"
             note={csvNotes.heads}
             endpoint="/admin/faculty-heads/import"
+            onDone={afterCreate}
+            onError={(nextError) => {
+              setError(nextError);
+              setMessage('');
+            }}
+          />
+          <CsvCreatePanel
+            title="Tạo tài khoản nhân viên phòng Công tác sinh viên"
+            note={csvNotes.ctsv}
+            endpoint="/admin/ctsv/import"
             onDone={afterCreate}
             onError={(nextError) => {
               setError(nextError);
@@ -376,11 +417,11 @@ export default function AdminDashboard() {
                 <div className="icon-actions">
                   {row.loai_tai_khoan !== 'covan' ? (
                     <>
-                      <IconButton icon="✎" label="Chỉnh sửa" onClick={() => setEditingAccount(row)} />
-                      <IconButton icon="🗑" label="Xóa" tone="danger" onClick={() => deleteAccount(row)} />
+                      <IconButton icon={<PenIcon />} label="Chỉnh sửa" onClick={() => setEditingAccount(row)} />
+                      <IconButton icon={<TrashIcon />} label="Xóa" tone="danger" onClick={() => deleteAccount(row)} />
                     </>
                   ) : null}
-                  <IconButton icon={row.is_active ? '🔒' : '🔓'} label={row.is_active ? 'Khóa tài khoản' : 'Mở tài khoản'} onClick={() => toggleAccount(row)} />
+                  <IconButton icon={row.is_active ? <LockClosedIcon /> : <LockOpenIcon />} label={row.is_active ? 'Khóa tài khoản' : 'Mở tài khoản'} onClick={() => toggleAccount(row)} />
                 </div>
               )}
             />
@@ -412,8 +453,8 @@ export default function AdminDashboard() {
               filterable
               actions={(row) => (
                 <div className="icon-actions">
-                  <IconButton icon="✎" label="Chỉnh sửa" onClick={() => setEditingAdvisor(row)} />
-                  <IconButton icon="🗑" label="Xóa" tone="danger" onClick={() => deleteAdvisor(row)} />
+                  <IconButton icon={<PenIcon />} label="Chỉnh sửa" onClick={() => setEditingAdvisor(row)} />
+                  <IconButton icon={<TrashIcon />} label="Xóa" tone="danger" onClick={() => deleteAdvisor(row)} />
                 </div>
               )}
             />

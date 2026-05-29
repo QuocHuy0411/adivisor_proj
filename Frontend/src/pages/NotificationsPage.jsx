@@ -4,6 +4,13 @@ import AppLayout from '../components/AppLayout.jsx';
 import DataTable from '../components/DataTable.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 
+const SearchIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="11" cy="11" r="8"></circle>
+    <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+  </svg>
+);
+
 function IconButton({ label, icon, onClick }) {
   return (
     <button className="icon-button" type="button" title={label} aria-label={label} onClick={onClick}>
@@ -49,7 +56,7 @@ export default function NotificationsPage() {
           { key: 'noi_dung', label: 'Nội dung' }
         ]} rows={rows} actionLabel="" actions={user?.loai_tai_khoan === 'khoa' ? (row) => (
           <div className="icon-actions">
-            <IconButton icon="🔍" label="Xem danh sách phân công" onClick={() => setSelectedYear(row.nam_hoc)} />
+            <IconButton icon={<SearchIcon />} label="Xem danh sách phân công" onClick={() => setSelectedYear(row.nam_hoc)} />
           </div>
         ) : null} />
       </section>

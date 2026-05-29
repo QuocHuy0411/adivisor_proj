@@ -51,24 +51,84 @@ adivisor/
   AI-CONTEXT.md
 ```
 
-## 4. Chạy dự án bằng Docker
+## 4. Hướng dẫn chạy dự án
 
-Yêu cầu cài sẵn Docker Desktop.
+### 4.1 Yêu cầu hệ thống
+
+- **Docker Desktop** (bao gồm Docker Engine và Docker Compose)
+- **Git** để clone repository
+- **Cổng trống**: 5173 (Frontend), 5000 (Backend), 3306 (MySQL), 8081 (phpMyAdmin)
+
+### 4.2 Chạy với Docker (Khuyến nghị)
+
+**Bước 1:** Mở terminal tại thư mục gốc của dự án
 
 ```bash
-docker compose up --build
+cd adivisor
 ```
 
-Sau khi chạy thành công:
+**Bước 2:** Khởi động toàn bộ ứng dụng bằng Docker Compose
 
-- Frontend: `http://localhost:5173`
-- Backend API: `http://localhost:5000/api`
-- phpMyAdmin: `http://localhost:8081`
-- **phpMyAdmin login**: Use MySQL root credentials (username `root`, password from `MYSQL_ROOT_PASSWORD` environment, default `root_password`). The application admin user (`admin`) is not a MySQL user.
+```bash
+docker compose up -d --build
+```
 
-- MySQL: `localhost:3306`
+`-d` giúp container chạy nền; sau khi lên xong, mở trình duyệt vào các địa chỉ localhost bên dưới.
 
-Backend sẽ tự chạy script khởi tạo database khi container khởi động.
+Lần đầu tiên sẽ mất khoảng 2-3 phút để tải image, build container và khởi tạo database.
+
+**Bước 3:** Truy cập các dịch vụ sau khi khởi động xong:
+
+| Dịch vụ | URL |
+| --- | --- |
+| Frontend (React App) | `http://localhost:5173` |
+| Backend API | `http://localhost:5000/api` |
+| phpMyAdmin | `http://localhost:8081` |
+| MySQL Server | `localhost:3306` |
+
+**Bước 4:** Dừng ứng dụng khi không dùng nữa
+
+```bash
+docker compose down
+```
+
+### 4.3 Chạy ở chế độ Development (Không dùng Docker)
+
+**Backend:**
+
+```bash
+cd Backend
+npm install
+npm run dev
+```
+
+Backend sẽ chạy tại `http://localhost:5000/api` và tự động reload khi code thay đổi.
+
+**Frontend (Terminal khác):**
+
+```bash
+cd Frontend
+npm install
+npm run dev
+```
+
+Frontend sẽ chạy tại `http://localhost:5173`.
+
+**Cơ sở dữ liệu:**
+
+Bạn cần setup MySQL 8 trước:
+
+```bash
+cd Backend
+node src/database/init-db.js
+```
+
+### 4.4 Lưu ý
+
+- Backend sẽ tự động khởi tạo database khi container Docker khởi động.
+- Nếu chạy development mode, cần cài MySQL 8 trên máy hoặc sử dụng container MySQL riêng.
+- Database sẽ được khởi tạo lần đầu dựa trên script `schema.sql` và `seed.sql`.
+- Mật khẩu MySQL mặc định trong Docker: `root`.
 
 ## 5. Tài khoản mẫu
 
@@ -82,7 +142,7 @@ Sau khi khởi tạo database, hệ thống có các tài khoản mẫu:
 | CVHT | `CVHT01` | `cvht` |
 | Sinh viên | `SV001` | `0900000001` |
 
-Sau lần đăng nhập đầu tiên, người dùng bắt buộc đổi mật khẩu.
+**Lưu ý:** Sau lần đăng nhập đầu tiên, người dùng **bắt buộc phải đổi mật khẩu** trước khi sử dụng các chức năng khác. Hãy chọn mật khẩu mạnh và lưu giữ an toàn.
 
 ## 6. Luồng nghiệp vụ chính
 
@@ -220,7 +280,86 @@ Admin không tạo thủ công trên giao diện. Các chức năng tạo nhân 
 - Mỗi CVHT phụ trách tối đa 2 lớp.
 - CVHT có `uu_tien = 3` không được phân công theo quy định nghiệp vụ hiện tại.
 
-## 10. Kiểm thử thủ công đề xuất
+## 10. Troubleshooting
+
+### Lỗi: Port đã được sử dụng
+
+**Triệu chứng:** `bind EADDRINUSE: address already in use :::5000` hoặc tương tự
+
+**Giải pháp:**
+
+- Cách 1: Dừng ứng dụng đang chạy trên port đó
+- Cách 2: Thay đổi port trong file `.env` (Backend) hoặc `vite.config.js` (Frontend)
+
+### Lỗi: Docker Compose không khởi động được
+
+**Triệu chứng:** `Cannot connect to Docker daemon` hoặc `docker-compose: command not found`
+
+**Giải pháp:**
+
+1. Kiểm tra Docker Desktop đã cài và chạy chưa
+2. Khởi động lại Docker Desktop
+3. Chạy lệnh: `docker compose version` để kiểm tra
+
+### Lỗi: Database không khởi tạo
+
+**Triệu chứng:** Lỗi khi đăng nhập hoặc không thấy dữ liệu
+
+**Giải pháp:**
+
+```bash
+# Xóa container và volume cũ
+docker compose down -v
+
+# Khởi động lại
+docker compose up -d --build
+```
+
+### Lỗi: CORS error khi gọi API
+
+**Triệu chứng:** `Access to XMLHttpRequest blocked by CORS policy`
+
+**Giải pháp:**
+
+- Kiểm tra Backend chạy tại `http://localhost:5000`
+- Kiểm tra file `src/app.js` trong Backend có cấu hình CORS đúng không
+
+### Lỗi: Không thể đăng nhập
+
+**Triệu chứng:** Đăng nhập thất bại hoặc mật khẩu sai
+
+**Giải pháp:**
+
+1. Kiểm tra tên tài khoản và mật khẩu đúng không (xem mục 5)
+2. Xóa localStorage browser: `F12` -> `Application` -> `Local Storage` -> xóa
+3. Thử đăng nhập tài khoản khác để kiểm tra
+
+### Cảnh báo: Nodemailer vulnerability
+
+**Triệu chứng:** `npm audit` báo 1 high severity vulnerability
+
+**Giải pháp:**
+
+```bash
+cd Backend
+npm audit fix --force
+npm install
+```
+
+### Lỗi: Frontend không load CSS/JS
+
+**Triệu chứng:** Trang trắng hoặc lỗi 404 trên console
+
+**Giải pháp:**
+
+```bash
+cd Frontend
+rm -rf node_modules package-lock.json
+npm install
+npm run dev
+```
+
+## 11. Kiểm thử thủ công đề xuất
 
 1. Đăng nhập admin, đổi mật khẩu, tạo CVHT hoặc nhân sự.
 2. Đăng nhập CTSV, tạo lớp và lập danh sách phân công.
