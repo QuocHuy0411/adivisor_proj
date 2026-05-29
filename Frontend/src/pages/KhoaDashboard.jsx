@@ -268,9 +268,8 @@ export default function KhoaDashboard() {
                   <option value="">CVHT mới</option>
                   {advisors.map((advisor) => <option key={advisor.ma_co_van} value={advisor.ma_co_van}>{advisor.ho_va_ten}</option>)}
                 </select>
-                {row.trang_thai === 'Chờ duyệt' ? <button onClick={() => action(`/khoa/replacement-requests/${row.ma_yeu_cau}/start-step-1`)}>Duyệt bước 1</button> : null}
-                {row.trang_thai === 'Đang duyệt bước 1' ? <button onClick={() => action(`/khoa/replacement-requests/${row.ma_yeu_cau}/approve-step-1`, { ma_co_van_moi: replacementAdvisor[row.ma_yeu_cau] })}>Chấp nhận</button> : null}
-                {['Chờ duyệt', 'Đang duyệt bước 1'].includes(row.trang_thai) ? <button className="secondary" onClick={() => action(`/khoa/replacement-requests/${row.ma_yeu_cau}/reject-step-1`)}>Từ chối</button> : null}
+                {row.trang_thai === 'Chờ duyệt' ? <button onClick={() => action(`/khoa/replacement-requests/${row.ma_yeu_cau}/approve-step-1`, { ma_co_van_moi: replacementAdvisor[row.ma_yeu_cau] })}>Duyệt</button> : null}
+                {row.trang_thai === 'Chờ duyệt' ? <button className="secondary" onClick={() => action(`/khoa/replacement-requests/${row.ma_yeu_cau}/reject-step-1`)}>Từ chối</button> : null}
               </>
             )} />
           </section>

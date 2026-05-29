@@ -553,17 +553,6 @@ export async function listReplacementRequests() {
   );
 }
 
-export async function startReplacementStep2(id) {
-  const rows = await query('SELECT * FROM YEU_CAU_THAY_THE WHERE ma_yeu_cau = :id', { id });
-  const request = rows[0];
-  if (!request) throw notFound('Không tìm thấy yêu cầu');
-  assertTransition('thayThe', request.trang_thai, YEU_CAU_THAY_THE.DANG_DUYET_BUOC_2);
-  await query('UPDATE YEU_CAU_THAY_THE SET trang_thai = :status WHERE ma_yeu_cau = :id', {
-    status: YEU_CAU_THAY_THE.DANG_DUYET_BUOC_2,
-    id
-  });
-  return { message: 'Phòng Công tác Sinh viên bắt đầu duyệt bước 2' };
-}
 
 export async function approveReplacement(user, id) {
   return transaction(async (connection) => {
@@ -581,15 +570,10 @@ export async function approveReplacement(user, id) {
     );
     const request = rows[0];
     if (!request) throw notFound('Không tìm thấy yêu cầu');
-    assertTransition('thayThe', request.trang_thai, YEU_CAU_THAY_THE.DA_DUYET_BUOC_2);
+    assertTransition('thayThe', request.trang_thai, YEU_CAU_THAY_THE.DA_DONG);
     if (!request.ma_co_van_moi) throw badRequest('Khoa chưa phân công cố vấn học tập mới');
     if (!request.co_van_moi_dang_hoat_dong) throw badRequest('Cố vấn học tập mới phải có tài khoản đang hoạt động');
     await assertAdvisorCapacity(connection, request.ma_co_van_moi, request.ma_lop);
-
-    await connection.execute('UPDATE YEU_CAU_THAY_THE SET trang_thai = ? WHERE ma_yeu_cau = ?', [
-      YEU_CAU_THAY_THE.DA_DUYET_BUOC_2,
-      id
-    ]);
     await connection.execute('UPDATE LOP SET ma_co_van = ?, trang_thai_lop = ? WHERE ma_lop = ?', [
       request.ma_co_van_moi,
       'Đã có CVHT',
@@ -622,8 +606,8 @@ export async function rejectReplacement(id) {
   const rows = await query('SELECT * FROM YEU_CAU_THAY_THE WHERE ma_yeu_cau = :id', { id });
   const request = rows[0];
   if (!request) throw notFound('Không tìm thấy yêu cầu');
-  if (![YEU_CAU_THAY_THE.DA_DUYET_BUOC_1, YEU_CAU_THAY_THE.DANG_DUYET_BUOC_2].includes(request.trang_thai)) {
-    throw badRequest('Chỉ từ chối ở giai đoạn Phòng Công tác Sinh viên duyệt bước 2');
+  if (request.trang_thai !== YEU_CAU_THAY_THE.DA_DUYET_BUOC_1) {
+    throw badRequest('Chỉ từ chối ở giai đoạn Khoa đã duyệt');
   }
   await query('UPDATE YEU_CAU_THAY_THE SET trang_thai = :status WHERE ma_yeu_cau = :id', {
     status: YEU_CAU_THAY_THE.BI_TU_CHOI,
@@ -636,18 +620,12 @@ export async function approveAllReplacements(user) {
   const rows = await query(
     `SELECT ma_yeu_cau, trang_thai
      FROM YEU_CAU_THAY_THE
-     WHERE trang_thai IN (:step1, :step2)
+     WHERE trang_thai = :step1
      ORDER BY ma_yeu_cau`,
-    { step1: YEU_CAU_THAY_THE.DA_DUYET_BUOC_1, step2: YEU_CAU_THAY_THE.DANG_DUYET_BUOC_2 }
+    { step1: YEU_CAU_THAY_THE.DA_DUYET_BUOC_1 }
   );
   if (!rows.length) throw badRequest('Không có yêu cầu thay thế nào cần duyệt');
   for (const row of rows) {
-    if (row.trang_thai === YEU_CAU_THAY_THE.DA_DUYET_BUOC_1) {
-      await query('UPDATE YEU_CAU_THAY_THE SET trang_thai = :status WHERE ma_yeu_cau = :id', {
-        status: YEU_CAU_THAY_THE.DANG_DUYET_BUOC_2,
-        id: row.ma_yeu_cau
-      });
-    }
     await approveReplacement(user, row.ma_yeu_cau);
   }
   return { message: `Đã duyệt ${rows.length} yêu cầu thay thế` };
@@ -657,11 +635,10 @@ export async function rejectAllReplacements() {
   const result = await query(
     `UPDATE YEU_CAU_THAY_THE
      SET trang_thai = :status
-     WHERE trang_thai IN (:step1, :step2)`,
+     WHERE trang_thai = :step1`,
     {
       status: YEU_CAU_THAY_THE.BI_TU_CHOI,
-      step1: YEU_CAU_THAY_THE.DA_DUYET_BUOC_1,
-      step2: YEU_CAU_THAY_THE.DANG_DUYET_BUOC_2
+      step1: YEU_CAU_THAY_THE.DA_DUYET_BUOC_1
     }
   );
   if (!result.affectedRows) throw badRequest('Không có yêu cầu thay thế nào cần từ chối');

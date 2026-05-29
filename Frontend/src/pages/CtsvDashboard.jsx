@@ -601,9 +601,8 @@ export default function CtsvDashboard() {
               { key: 'trang_thai', label: 'Trạng thái' }
             ]} rows={pendingRequests} filterable actionLabel="" actions={(row) => (
               <>
-                {row.trang_thai === 'Đã duyệt bước 1' ? <button onClick={() => assignmentAction(`/ctsv/replacement-requests/${row.ma_yeu_cau}/start-step-2`)}>Duyệt</button> : null}
-                {row.trang_thai === 'Đang duyệt bước 2' ? <button onClick={() => assignmentAction(`/ctsv/replacement-requests/${row.ma_yeu_cau}/approve`)}>Duyệt</button> : null}
-                {['Đã duyệt bước 1', 'Đang duyệt bước 2'].includes(row.trang_thai) ? <button className="secondary" onClick={() => assignmentAction(`/ctsv/replacement-requests/${row.ma_yeu_cau}/reject`)}>Không duyệt</button> : null}
+                {row.trang_thai === 'Khoa đã duyệt' ? <button onClick={() => assignmentAction(`/ctsv/replacement-requests/${row.ma_yeu_cau}/approve`)}>Duyệt và Gửi thông báo</button> : null}
+                {row.trang_thai === 'Khoa đã duyệt' ? <button className="secondary" onClick={() => assignmentAction(`/ctsv/replacement-requests/${row.ma_yeu_cau}/reject`)}>Không duyệt</button> : null}
               </>
             )} />
             <div className="panel-footer-actions">
