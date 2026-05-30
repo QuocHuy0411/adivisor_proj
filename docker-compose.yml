@@ -3,6 +3,7 @@ services:
     image: mysql:8.0
     container_name: adivisor-mysql
     restart: unless-stopped
+    command: --lower_case_table_names=1
     environment:
       MYSQL_DATABASE: ${DB_NAME:-adivisor}
       MYSQL_USER: ${DB_USER:-adivisor}

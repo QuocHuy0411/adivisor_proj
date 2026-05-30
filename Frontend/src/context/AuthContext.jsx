@@ -18,6 +18,15 @@ export function AuthProvider({ children }) {
     return data;
   }
 
+  async function loginWithGoogle() {
+    const { data } = await api.get('/auth/google/login');
+    const googleUrl = data.url || data.result;
+    if (!googleUrl) {
+      throw new Error('Khong lay duoc duong dan dang nhap Google');
+    }
+    window.location.assign(googleUrl);
+  }
+
   async function refreshMe() {
     const { data } = await api.get('/auth/me');
     localStorage.setItem('user', JSON.stringify(data));
@@ -56,7 +65,10 @@ export function AuthProvider({ children }) {
     return () => window.removeEventListener('auth:unauthorized', handleUnauthorized);
   }, []);
 
-  const value = useMemo(() => ({ user, loading, login, logout, changePassword }), [user, loading]);
+  const value = useMemo(
+    () => ({ user, loading, login, loginWithGoogle, logout, changePassword }),
+    [user, loading]
+  );
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
