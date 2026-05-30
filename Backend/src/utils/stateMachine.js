@@ -27,10 +27,7 @@ export const DANH_SACH_DUYET = {
 
 export const YEU_CAU_THAY_THE = {
   CHO_DUYET: 'Chờ duyệt',
-  DANG_DUYET_BUOC_1: 'Đang duyệt bước 1',
-  DA_DUYET_BUOC_1: 'Đã duyệt bước 1',
-  DANG_DUYET_BUOC_2: 'Đang duyệt bước 2',
-  DA_DUYET_BUOC_2: 'Đã duyệt bước 2',
+  DA_DUYET_BUOC_1: 'Khoa đã duyệt',
   DA_DONG: 'Đã đóng',
   BI_TU_CHOI: 'Bị từ chối'
 };
@@ -44,22 +41,13 @@ const transitions = {
   },
   thayThe: {
     [YEU_CAU_THAY_THE.CHO_DUYET]: [
-      YEU_CAU_THAY_THE.DANG_DUYET_BUOC_1,
-      YEU_CAU_THAY_THE.BI_TU_CHOI
-    ],
-    [YEU_CAU_THAY_THE.DANG_DUYET_BUOC_1]: [
       YEU_CAU_THAY_THE.DA_DUYET_BUOC_1,
       YEU_CAU_THAY_THE.BI_TU_CHOI
     ],
     [YEU_CAU_THAY_THE.DA_DUYET_BUOC_1]: [
-      YEU_CAU_THAY_THE.DANG_DUYET_BUOC_2,
+      YEU_CAU_THAY_THE.DA_DONG,
       YEU_CAU_THAY_THE.BI_TU_CHOI
     ],
-    [YEU_CAU_THAY_THE.DANG_DUYET_BUOC_2]: [
-      YEU_CAU_THAY_THE.DA_DUYET_BUOC_2,
-      YEU_CAU_THAY_THE.BI_TU_CHOI
-    ],
-    [YEU_CAU_THAY_THE.DA_DUYET_BUOC_2]: [YEU_CAU_THAY_THE.DA_DONG],
     [YEU_CAU_THAY_THE.DA_DONG]: [],
     [YEU_CAU_THAY_THE.BI_TU_CHOI]: []
   }

@@ -4,6 +4,7 @@ import { api } from '../api/client.js';
 import AppLayout from '../components/AppLayout.jsx';
 import DataTable from '../components/DataTable.jsx';
 import Toast from '../components/Toast.jsx';
+import ExpandableText from '../components/ExpandableText.jsx';
 
 const WAITING = 'Chờ phân công';
 const ASSIGNED = 'Đã phân công';
@@ -11,7 +12,7 @@ const DIRECTOR_WAITING = 'Chờ giám đốc duyệt';
 const CLOSED = 'Đã đóng';
 const ASSIGNMENT_RECEIVED_STATUSES = [WAITING, ASSIGNED, DIRECTOR_WAITING];
 const ASSIGNMENT_HISTORY_STATUSES = [CLOSED];
-const REPLACEMENT_HISTORY_STATUSES = ['Đã đóng', 'Bị từ chối'];
+const REPLACEMENT_HISTORY_STATUSES = ['Đã đóng'];
 const sectionTitle = {
   assignment: 'Phân công',
   employees: 'Danh sách nhân viên',
@@ -261,6 +262,7 @@ export default function KhoaDashboard() {
               { key: 'ten_lop', label: 'Lớp' },
               { key: 'ten_co_van_cu', label: 'CVHT cũ' },
               { key: 'ten_co_van_moi', label: 'CVHT mới' },
+              { key: 'ly_do', label: 'Lý do dừng', render: (row) => <ExpandableText text={row.ly_do} /> },
               { key: 'trang_thai', label: 'Trạng thái' }
             ]} rows={pendingReplacementRequests} actions={(row) => (
               <>
@@ -268,9 +270,8 @@ export default function KhoaDashboard() {
                   <option value="">CVHT mới</option>
                   {advisors.map((advisor) => <option key={advisor.ma_co_van} value={advisor.ma_co_van}>{advisor.ho_va_ten}</option>)}
                 </select>
-                {row.trang_thai === 'Chờ duyệt' ? <button onClick={() => action(`/khoa/replacement-requests/${row.ma_yeu_cau}/start-step-1`)}>Duyệt bước 1</button> : null}
-                {row.trang_thai === 'Đang duyệt bước 1' ? <button onClick={() => action(`/khoa/replacement-requests/${row.ma_yeu_cau}/approve-step-1`, { ma_co_van_moi: replacementAdvisor[row.ma_yeu_cau] })}>Chấp nhận</button> : null}
-                {['Chờ duyệt', 'Đang duyệt bước 1'].includes(row.trang_thai) ? <button className="secondary" onClick={() => action(`/khoa/replacement-requests/${row.ma_yeu_cau}/reject-step-1`)}>Từ chối</button> : null}
+                {row.trang_thai === 'Chờ duyệt' ? <button onClick={() => action(`/khoa/replacement-requests/${row.ma_yeu_cau}/approve-step-1`, { ma_co_van_moi: replacementAdvisor[row.ma_yeu_cau] })}>Duyệt</button> : null}
+                {row.trang_thai === 'Chờ duyệt' ? <button className="secondary" onClick={() => action(`/khoa/replacement-requests/${row.ma_yeu_cau}/reject-step-1`)}>Từ chối</button> : null}
               </>
             )} />
           </section>

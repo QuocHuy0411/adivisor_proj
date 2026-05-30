@@ -59,6 +59,7 @@ export async function listAssignments(user) {
        GROUP BY tk.ma_khoa
      ) tk ON tk.ma_khoa = l.ma_khoa
      WHERE l.ma_khoa = :ma_khoa
+       AND pc.ma_phan_cong NOT IN (SELECT ma_phan_cong FROM YEU_CAU_THAY_THE)
      ORDER BY pc.nam_hoc DESC, pc.trang_thai, l.ten_lop`,
     { ma_khoa: user.ma_khoa }
   );
@@ -94,6 +95,7 @@ export async function autoAssignAdvisors(user) {
        FROM PHAN_CONG pc
        JOIN LOP l ON l.ma_lop = pc.ma_lop
        WHERE l.ma_khoa = ? AND pc.trang_thai = ?
+         AND pc.ma_phan_cong NOT IN (SELECT ma_phan_cong FROM YEU_CAU_THAY_THE)
        ORDER BY l.chuyen_nganh, l.ten_lop`,
       [user.ma_khoa, PHAN_CONG.CHO_PHAN_CONG]
     );
@@ -199,6 +201,7 @@ export async function submitAllAssignments(user) {
        FROM PHAN_CONG pc
        JOIN LOP l ON l.ma_lop = pc.ma_lop
        WHERE l.ma_khoa = ? AND pc.trang_thai IN (?, ?)
+         AND pc.ma_phan_cong NOT IN (SELECT ma_phan_cong FROM YEU_CAU_THAY_THE)
        ORDER BY l.ten_lop`,
       [user.ma_khoa, PHAN_CONG.CHO_PHAN_CONG, PHAN_CONG.DA_PHAN_CONG]
     );
@@ -213,7 +216,8 @@ export async function submitAllAssignments(user) {
       `UPDATE PHAN_CONG pc
        JOIN LOP l ON l.ma_lop = pc.ma_lop
        SET pc.trang_thai = ?, pc.ten_truong_khoa = ?
-       WHERE l.ma_khoa = ? AND pc.trang_thai = ?`,
+       WHERE l.ma_khoa = ? AND pc.trang_thai = ?
+         AND pc.ma_phan_cong NOT IN (SELECT ma_phan_cong FROM YEU_CAU_THAY_THE)`,
       [PHAN_CONG.CHO_GIAM_DOC_DUYET, user.ho_va_ten, user.ma_khoa, PHAN_CONG.DA_PHAN_CONG]
     );
 
@@ -244,25 +248,6 @@ export async function listReplacementRequests(user) {
   );
 }
 
-export async function startReplacementStep1(user, ma_yeu_cau) {
-  const rows = await query(
-    `SELECT yc.*, l.ma_khoa
-     FROM YEU_CAU_THAY_THE yc
-     JOIN PHAN_CONG pc ON pc.ma_phan_cong = yc.ma_phan_cong
-     JOIN LOP l ON l.ma_lop = pc.ma_lop
-     WHERE yc.ma_yeu_cau = :id`,
-    { id: ma_yeu_cau }
-  );
-  const request = rows[0];
-  if (!request) throw notFound('Không tìm thấy yêu cầu');
-  if (request.ma_khoa !== user.ma_khoa) throw forbidden('Chỉ duyệt yêu cầu thuộc Khoa mình');
-  assertTransition('thayThe', request.trang_thai, YEU_CAU_THAY_THE.DANG_DUYET_BUOC_1);
-  await query('UPDATE YEU_CAU_THAY_THE SET trang_thai = :status WHERE ma_yeu_cau = :id', {
-    status: YEU_CAU_THAY_THE.DANG_DUYET_BUOC_1,
-    id: ma_yeu_cau
-  });
-  return { message: 'Khoa bắt đầu duyệt bước 1' };
-}
 
 export async function approveReplacementStep1(user, ma_yeu_cau, ma_co_van_moi) {
   return transaction(async (connection) => {
@@ -290,7 +275,7 @@ export async function approveReplacementStep1(user, ma_yeu_cau, ma_co_van_moi) {
       user.ho_va_ten,
       ma_yeu_cau
     ]);
-    return { message: 'Khoa đã duyệt bước 1 và chọn cố vấn học tập mới' };
+    return { message: 'Khoa đã duyệt và chọn cố vấn học tập mới' };
   });
 }
 
@@ -306,7 +291,7 @@ export async function rejectReplacementStep1(user, ma_yeu_cau) {
   const request = rows[0];
   if (!request) throw notFound('Không tìm thấy yêu cầu');
   if (request.ma_khoa !== user.ma_khoa) throw forbidden('Chỉ duyệt yêu cầu thuộc Khoa mình');
-  if (![YEU_CAU_THAY_THE.CHO_DUYET, YEU_CAU_THAY_THE.DANG_DUYET_BUOC_1].includes(request.trang_thai)) {
+  if (request.trang_thai !== YEU_CAU_THAY_THE.CHO_DUYET) {
     throw badRequest('Chỉ từ chối ở bước Khoa đang duyệt');
   }
   await query('UPDATE YEU_CAU_THAY_THE SET trang_thai = :status WHERE ma_yeu_cau = :id', {

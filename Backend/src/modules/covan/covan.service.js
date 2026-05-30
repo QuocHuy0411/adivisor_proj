@@ -39,6 +39,21 @@ export async function createReplacementRequest(user, payload) {
   const lop = rows[0];
   if (!lop) throw forbidden('Chỉ gửi yêu cầu cho lớp đang phụ trách');
 
+  const pendingRequests = await query(
+    `SELECT yc.* 
+     FROM YEU_CAU_THAY_THE yc
+     JOIN PHAN_CONG pc ON pc.ma_phan_cong = yc.ma_phan_cong
+     WHERE pc.ma_lop = :ma_lop AND yc.trang_thai NOT IN (:da_dong, :tu_choi)`,
+    { 
+      ma_lop: payload.ma_lop, 
+      da_dong: YEU_CAU_THAY_THE.DA_DONG, 
+      tu_choi: YEU_CAU_THAY_THE.BI_TU_CHOI 
+    }
+  );
+  if (pendingRequests.length > 0) {
+    throw badRequest('Lớp này đang có yêu cầu thay thế chờ xử lý, không thể gửi thêm');
+  }
+
   return transaction(async (connection) => {
     const ma_phan_cong = makeId('PC');
     const ma_yeu_cau = makeId('YC');

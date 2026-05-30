@@ -4,6 +4,7 @@ import { api } from '../api/client.js';
 import AppLayout from '../components/AppLayout.jsx';
 import DataTable from '../components/DataTable.jsx';
 import Toast from '../components/Toast.jsx';
+import ExpandableText from '../components/ExpandableText.jsx';
 
 const sectionTitle = {
   create: 'Tạo lớp và sinh viên',
@@ -363,7 +364,7 @@ export default function CtsvDashboard() {
       || String(b.ten_lop || '').localeCompare(String(a.ten_lop || '')));
 
   const replacementHistory = requests
-    .filter((row) => row.trang_thai === CLOSED)
+    .filter((row) => [CLOSED, REJECTED].includes(row.trang_thai))
     .sort((a, b) => yearRank(b.nam_hoc) - yearRank(a.nam_hoc)
       || String(b.ten_khoa || '').localeCompare(String(a.ten_khoa || ''))
       || classRank(b.ten_lop) - classRank(a.ten_lop)
@@ -485,6 +486,7 @@ export default function CtsvDashboard() {
       { label: 'Khoa', value: (row) => row.ten_khoa },
       { label: 'Cố vấn cũ', value: (row) => row.ten_co_van_cu || '' },
       { label: 'Cố vấn mới', value: (row) => row.ten_co_van_moi || '' },
+      { label: 'Lý do dừng', value: (row) => row.ly_do || '' },
       { label: 'Trạng thái', value: (row) => row.trang_thai }
     ], 'danh-sach-yeu-cau-thay-the', replacementExportType);
   }
@@ -598,12 +600,12 @@ export default function CtsvDashboard() {
               { key: 'ten_khoa', label: 'Khoa', render: (row) => row.ten_khoa || row.ma_khoa },
               { key: 'ten_co_van_cu', label: 'Cố vấn cũ' },
               { key: 'ten_co_van_moi', label: 'Cố vấn mới', render: (row) => row.ten_co_van_moi || '-' },
+              { key: 'ly_do', label: 'Lý do dừng', render: (row) => <ExpandableText text={row.ly_do} /> },
               { key: 'trang_thai', label: 'Trạng thái' }
             ]} rows={pendingRequests} filterable actionLabel="" actions={(row) => (
               <>
-                {row.trang_thai === 'Đã duyệt bước 1' ? <button onClick={() => assignmentAction(`/ctsv/replacement-requests/${row.ma_yeu_cau}/start-step-2`)}>Duyệt</button> : null}
-                {row.trang_thai === 'Đang duyệt bước 2' ? <button onClick={() => assignmentAction(`/ctsv/replacement-requests/${row.ma_yeu_cau}/approve`)}>Duyệt</button> : null}
-                {['Đã duyệt bước 1', 'Đang duyệt bước 2'].includes(row.trang_thai) ? <button className="secondary" onClick={() => assignmentAction(`/ctsv/replacement-requests/${row.ma_yeu_cau}/reject`)}>Không duyệt</button> : null}
+                {row.trang_thai === 'Khoa đã duyệt' ? <button onClick={() => assignmentAction(`/ctsv/replacement-requests/${row.ma_yeu_cau}/approve`)}>Duyệt và Gửi thông báo</button> : null}
+                {row.trang_thai === 'Khoa đã duyệt' ? <button className="secondary" onClick={() => assignmentAction(`/ctsv/replacement-requests/${row.ma_yeu_cau}/reject`)}>Không duyệt</button> : null}
               </>
             )} />
             <div className="panel-footer-actions">
@@ -636,9 +638,9 @@ export default function CtsvDashboard() {
               { key: 'ma_yeu_cau', label: 'Mã yêu cầu' },
               { key: 'ten_lop', label: 'Lớp' },
               { key: 'ten_khoa', label: 'Khoa', render: (row) => row.ten_khoa || row.ma_khoa },
-              { key: 'ten_truong_khoa', label: 'Trưởng khoa', render: (row) => row.ten_truong_khoa || '-' },
               { key: 'ten_co_van_cu', label: 'Cố vấn cũ' },
               { key: 'ten_co_van_moi', label: 'Cố vấn mới', render: (row) => row.ten_co_van_moi || '-' },
+              { key: 'ly_do', label: 'Lý do dừng', render: (row) => <ExpandableText text={row.ly_do} /> },
               { key: 'nam_hoc', label: 'Năm học', render: (row) => row.nam_hoc || '-' }
             ]} rows={replacementHistory} />
           </section>

@@ -43,7 +43,7 @@ router.post('/assignments/:id/reject', asyncHandler(async (req, res) => res.json
 router.get('/replacement-requests', asyncHandler(async (req, res) => res.json(await service.listReplacementRequests())));
 router.post('/replacement-requests/approve-all', asyncHandler(async (req, res) => res.json(await service.approveAllReplacements(req.user))));
 router.post('/replacement-requests/reject-all', asyncHandler(async (req, res) => res.json(await service.rejectAllReplacements())));
-router.post('/replacement-requests/:id/start-step-2', asyncHandler(async (req, res) => res.json(await service.startReplacementStep2(req.params.id))));
+
 router.post('/replacement-requests/:id/approve', asyncHandler(async (req, res) => res.json(await service.approveReplacement(req.user, req.params.id))));
 router.post('/replacement-requests/:id/reject', asyncHandler(async (req, res) => res.json(await service.rejectReplacement(req.params.id))));
 

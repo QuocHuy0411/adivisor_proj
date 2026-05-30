@@ -287,6 +287,7 @@ export async function listAssignments() {
        WHERE acc.is_active = true
        GROUP BY tk.ma_khoa
      ) tk ON tk.ma_khoa = l.ma_khoa
+     WHERE pc.ma_phan_cong NOT IN (SELECT ma_phan_cong FROM YEU_CAU_THAY_THE)
      ORDER BY pc.nam_hoc DESC, l.ma_khoa, pc.trang_thai`
   );
 }
@@ -337,6 +338,7 @@ export async function resetClassAdvisors() {
       `SELECT ma_phan_cong
        FROM PHAN_CONG
        WHERE trang_thai IN (?, ?, ?, ?)
+         AND ma_phan_cong NOT IN (SELECT ma_phan_cong FROM YEU_CAU_THAY_THE)
        LIMIT 1`,
       [PHAN_CONG.CHO_PHAN_CONG, PHAN_CONG.DA_PHAN_CONG, PHAN_CONG.CHO_GIAM_DOC_DUYET, PHAN_CONG.BI_TU_CHOI]
     );
@@ -345,7 +347,8 @@ export async function resetClassAdvisors() {
     }
     await connection.execute(
       `DELETE FROM PHAN_CONG
-       WHERE trang_thai IN (?, ?, ?, ?)`,
+       WHERE trang_thai IN (?, ?, ?, ?)
+         AND ma_phan_cong NOT IN (SELECT ma_phan_cong FROM YEU_CAU_THAY_THE)`,
       [PHAN_CONG.CHO_PHAN_CONG, PHAN_CONG.DA_PHAN_CONG, PHAN_CONG.CHO_GIAM_DOC_DUYET, PHAN_CONG.BI_TU_CHOI]
     );
     const [classResult] = await connection.execute(
@@ -496,7 +499,7 @@ export async function rejectAssignment(id) {
 export async function approveAllAssignments(user) {
   return transaction(async (connection) => {
     const [rows] = await connection.execute(
-      'SELECT ma_phan_cong FROM PHAN_CONG WHERE trang_thai = ? ORDER BY ma_phan_cong',
+      'SELECT ma_phan_cong FROM PHAN_CONG WHERE trang_thai = ? AND ma_phan_cong NOT IN (SELECT ma_phan_cong FROM YEU_CAU_THAY_THE) ORDER BY ma_phan_cong',
       [PHAN_CONG.CHO_GIAM_DOC_DUYET]
     );
     if (!rows.length) throw badRequest('Không có phân công nào cần duyệt');
@@ -510,7 +513,7 @@ export async function approveAllAssignments(user) {
 export async function rejectAllAssignments() {
   return transaction(async (connection) => {
     const [rows] = await connection.execute(
-      'SELECT ma_phan_cong, ma_lop FROM PHAN_CONG WHERE trang_thai = ?',
+      'SELECT ma_phan_cong, ma_lop FROM PHAN_CONG WHERE trang_thai = ? AND ma_phan_cong NOT IN (SELECT ma_phan_cong FROM YEU_CAU_THAY_THE)',
       [PHAN_CONG.CHO_GIAM_DOC_DUYET]
     );
     if (!rows.length) throw badRequest('Không có phân công nào cần từ chối');
@@ -531,7 +534,7 @@ export async function rejectAllAssignments() {
 
 export async function listReplacementRequests() {
   return query(
-    `SELECT yc.*, pc.ma_lop, pc.ma_co_van AS ma_co_van_moi, l.ten_lop, l.ma_khoa,
+    `SELECT yc.*, pc.ma_lop, pc.nam_hoc, pc.ma_co_van AS ma_co_van_moi, l.ten_lop, l.ma_khoa,
             cu.ho_va_ten AS ten_co_van_cu,
             CASE WHEN moi_tk.ma_tai_khoan IS NULL THEN NULL ELSE moi.ho_va_ten END AS ten_co_van_moi,
             k.ten_khoa, COALESCE(yc.ten_truong_khoa, tk.ho_va_ten) AS ten_truong_khoa
@@ -553,17 +556,6 @@ export async function listReplacementRequests() {
   );
 }
 
-export async function startReplacementStep2(id) {
-  const rows = await query('SELECT * FROM YEU_CAU_THAY_THE WHERE ma_yeu_cau = :id', { id });
-  const request = rows[0];
-  if (!request) throw notFound('Không tìm thấy yêu cầu');
-  assertTransition('thayThe', request.trang_thai, YEU_CAU_THAY_THE.DANG_DUYET_BUOC_2);
-  await query('UPDATE YEU_CAU_THAY_THE SET trang_thai = :status WHERE ma_yeu_cau = :id', {
-    status: YEU_CAU_THAY_THE.DANG_DUYET_BUOC_2,
-    id
-  });
-  return { message: 'Phòng Công tác Sinh viên bắt đầu duyệt bước 2' };
-}
 
 export async function approveReplacement(user, id) {
   return transaction(async (connection) => {
@@ -581,15 +573,10 @@ export async function approveReplacement(user, id) {
     );
     const request = rows[0];
     if (!request) throw notFound('Không tìm thấy yêu cầu');
-    assertTransition('thayThe', request.trang_thai, YEU_CAU_THAY_THE.DA_DUYET_BUOC_2);
+    assertTransition('thayThe', request.trang_thai, YEU_CAU_THAY_THE.DA_DONG);
     if (!request.ma_co_van_moi) throw badRequest('Khoa chưa phân công cố vấn học tập mới');
     if (!request.co_van_moi_dang_hoat_dong) throw badRequest('Cố vấn học tập mới phải có tài khoản đang hoạt động');
     await assertAdvisorCapacity(connection, request.ma_co_van_moi, request.ma_lop);
-
-    await connection.execute('UPDATE YEU_CAU_THAY_THE SET trang_thai = ? WHERE ma_yeu_cau = ?', [
-      YEU_CAU_THAY_THE.DA_DUYET_BUOC_2,
-      id
-    ]);
     await connection.execute('UPDATE LOP SET ma_co_van = ?, trang_thai_lop = ? WHERE ma_lop = ?', [
       request.ma_co_van_moi,
       'Đã có CVHT',
@@ -606,10 +593,11 @@ export async function approveReplacement(user, id) {
     ]);
     await createNotification(connection, user.ma_nhan_vien, {
       tieu_de: 'Thông báo thay đổi cố vấn học tập',
-      noi_dung: `Lớp ${request.ten_lop} đã được thay đổi cố vấn học tập mới: ${request.ten_co_van_moi}.`,
+      noi_dung: `Đã thay thế cho lớp ${request.ten_lop} và cố vấn mới là ${request.ten_co_van_moi}.`,
       recipients: [
         { loai_nguoi_nhan: 'lop', ma_doi_tuong: request.ma_lop },
         { loai_nguoi_nhan: 'khoa', ma_doi_tuong: request.ma_khoa },
+        { loai_nguoi_nhan: 'ctsv', ma_doi_tuong: 'CTSV' },
         { loai_nguoi_nhan: 'covan', ma_doi_tuong: request.ma_co_van },
         { loai_nguoi_nhan: 'covan', ma_doi_tuong: request.ma_co_van_moi }
       ]
@@ -622,8 +610,8 @@ export async function rejectReplacement(id) {
   const rows = await query('SELECT * FROM YEU_CAU_THAY_THE WHERE ma_yeu_cau = :id', { id });
   const request = rows[0];
   if (!request) throw notFound('Không tìm thấy yêu cầu');
-  if (![YEU_CAU_THAY_THE.DA_DUYET_BUOC_1, YEU_CAU_THAY_THE.DANG_DUYET_BUOC_2].includes(request.trang_thai)) {
-    throw badRequest('Chỉ từ chối ở giai đoạn Phòng Công tác Sinh viên duyệt bước 2');
+  if (request.trang_thai !== YEU_CAU_THAY_THE.DA_DUYET_BUOC_1) {
+    throw badRequest('Chỉ từ chối ở giai đoạn Khoa đã duyệt');
   }
   await query('UPDATE YEU_CAU_THAY_THE SET trang_thai = :status WHERE ma_yeu_cau = :id', {
     status: YEU_CAU_THAY_THE.BI_TU_CHOI,
@@ -636,18 +624,12 @@ export async function approveAllReplacements(user) {
   const rows = await query(
     `SELECT ma_yeu_cau, trang_thai
      FROM YEU_CAU_THAY_THE
-     WHERE trang_thai IN (:step1, :step2)
+     WHERE trang_thai = ?
      ORDER BY ma_yeu_cau`,
-    { step1: YEU_CAU_THAY_THE.DA_DUYET_BUOC_1, step2: YEU_CAU_THAY_THE.DANG_DUYET_BUOC_2 }
+    [YEU_CAU_THAY_THE.DA_DUYET_BUOC_1]
   );
   if (!rows.length) throw badRequest('Không có yêu cầu thay thế nào cần duyệt');
   for (const row of rows) {
-    if (row.trang_thai === YEU_CAU_THAY_THE.DA_DUYET_BUOC_1) {
-      await query('UPDATE YEU_CAU_THAY_THE SET trang_thai = :status WHERE ma_yeu_cau = :id', {
-        status: YEU_CAU_THAY_THE.DANG_DUYET_BUOC_2,
-        id: row.ma_yeu_cau
-      });
-    }
     await approveReplacement(user, row.ma_yeu_cau);
   }
   return { message: `Đã duyệt ${rows.length} yêu cầu thay thế` };
@@ -656,13 +638,9 @@ export async function approveAllReplacements(user) {
 export async function rejectAllReplacements() {
   const result = await query(
     `UPDATE YEU_CAU_THAY_THE
-     SET trang_thai = :status
-     WHERE trang_thai IN (:step1, :step2)`,
-    {
-      status: YEU_CAU_THAY_THE.BI_TU_CHOI,
-      step1: YEU_CAU_THAY_THE.DA_DUYET_BUOC_1,
-      step2: YEU_CAU_THAY_THE.DANG_DUYET_BUOC_2
-    }
+     SET trang_thai = ?
+     WHERE trang_thai = ?`,
+    [YEU_CAU_THAY_THE.BI_TU_CHOI, YEU_CAU_THAY_THE.DA_DUYET_BUOC_1]
   );
   if (!result.affectedRows) throw badRequest('Không có yêu cầu thay thế nào cần từ chối');
   return { message: `Đã từ chối ${result.affectedRows} yêu cầu thay thế` };
