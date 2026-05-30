@@ -3,6 +3,7 @@ import { api } from '../api/client.js';
 import AppLayout from '../components/AppLayout.jsx';
 import DataTable from '../components/DataTable.jsx';
 import Toast from '../components/Toast.jsx';
+import ExpandableText from '../components/ExpandableText.jsx';
 
 export default function CovanDashboard() {
   const [classes, setClasses] = useState([]);
@@ -99,8 +100,8 @@ export default function CovanDashboard() {
         <DataTable pageSize={3} columns={[
           { key: 'ma_yeu_cau', label: 'Mã yêu cầu' },
           { key: 'ten_lop', label: 'Lớp' },
-          { key: 'ly_do', label: 'Lý do' },
-          { key: 'ten_co_van_moi', label: 'Cố vấn mới', render: (row) => row.ten_co_van_moi || '-' },
+          { key: 'ten_co_van_moi', label: 'CVHT mới', render: (row) => row.ten_co_van_moi || '-' },
+          { key: 'ly_do', label: 'Lý do', render: (row) => <ExpandableText text={row.ly_do} /> },
           { key: 'trang_thai', label: 'Trạng thái' }
         ]} rows={requests} />
       </section>

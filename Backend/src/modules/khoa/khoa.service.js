@@ -59,6 +59,7 @@ export async function listAssignments(user) {
        GROUP BY tk.ma_khoa
      ) tk ON tk.ma_khoa = l.ma_khoa
      WHERE l.ma_khoa = :ma_khoa
+       AND pc.ma_phan_cong NOT IN (SELECT ma_phan_cong FROM YEU_CAU_THAY_THE)
      ORDER BY pc.nam_hoc DESC, pc.trang_thai, l.ten_lop`,
     { ma_khoa: user.ma_khoa }
   );
@@ -94,6 +95,7 @@ export async function autoAssignAdvisors(user) {
        FROM PHAN_CONG pc
        JOIN LOP l ON l.ma_lop = pc.ma_lop
        WHERE l.ma_khoa = ? AND pc.trang_thai = ?
+         AND pc.ma_phan_cong NOT IN (SELECT ma_phan_cong FROM YEU_CAU_THAY_THE)
        ORDER BY l.chuyen_nganh, l.ten_lop`,
       [user.ma_khoa, PHAN_CONG.CHO_PHAN_CONG]
     );
@@ -199,6 +201,7 @@ export async function submitAllAssignments(user) {
        FROM PHAN_CONG pc
        JOIN LOP l ON l.ma_lop = pc.ma_lop
        WHERE l.ma_khoa = ? AND pc.trang_thai IN (?, ?)
+         AND pc.ma_phan_cong NOT IN (SELECT ma_phan_cong FROM YEU_CAU_THAY_THE)
        ORDER BY l.ten_lop`,
       [user.ma_khoa, PHAN_CONG.CHO_PHAN_CONG, PHAN_CONG.DA_PHAN_CONG]
     );
@@ -213,7 +216,8 @@ export async function submitAllAssignments(user) {
       `UPDATE PHAN_CONG pc
        JOIN LOP l ON l.ma_lop = pc.ma_lop
        SET pc.trang_thai = ?, pc.ten_truong_khoa = ?
-       WHERE l.ma_khoa = ? AND pc.trang_thai = ?`,
+       WHERE l.ma_khoa = ? AND pc.trang_thai = ?
+         AND pc.ma_phan_cong NOT IN (SELECT ma_phan_cong FROM YEU_CAU_THAY_THE)`,
       [PHAN_CONG.CHO_GIAM_DOC_DUYET, user.ho_va_ten, user.ma_khoa, PHAN_CONG.DA_PHAN_CONG]
     );
 

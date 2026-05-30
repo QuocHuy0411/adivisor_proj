@@ -4,6 +4,7 @@ import { api } from '../api/client.js';
 import AppLayout from '../components/AppLayout.jsx';
 import DataTable from '../components/DataTable.jsx';
 import Toast from '../components/Toast.jsx';
+import ExpandableText from '../components/ExpandableText.jsx';
 
 const sectionTitle = {
   create: 'Tạo lớp và sinh viên',
@@ -363,7 +364,7 @@ export default function CtsvDashboard() {
       || String(b.ten_lop || '').localeCompare(String(a.ten_lop || '')));
 
   const replacementHistory = requests
-    .filter((row) => row.trang_thai === CLOSED)
+    .filter((row) => [CLOSED, REJECTED].includes(row.trang_thai))
     .sort((a, b) => yearRank(b.nam_hoc) - yearRank(a.nam_hoc)
       || String(b.ten_khoa || '').localeCompare(String(a.ten_khoa || ''))
       || classRank(b.ten_lop) - classRank(a.ten_lop)
@@ -599,7 +600,7 @@ export default function CtsvDashboard() {
               { key: 'ten_khoa', label: 'Khoa', render: (row) => row.ten_khoa || row.ma_khoa },
               { key: 'ten_co_van_cu', label: 'Cố vấn cũ' },
               { key: 'ten_co_van_moi', label: 'Cố vấn mới', render: (row) => row.ten_co_van_moi || '-' },
-              { key: 'ly_do', label: 'Lý do dừng' },
+              { key: 'ly_do', label: 'Lý do dừng', render: (row) => <ExpandableText text={row.ly_do} /> },
               { key: 'trang_thai', label: 'Trạng thái' }
             ]} rows={pendingRequests} filterable actionLabel="" actions={(row) => (
               <>
@@ -639,7 +640,7 @@ export default function CtsvDashboard() {
               { key: 'ten_khoa', label: 'Khoa', render: (row) => row.ten_khoa || row.ma_khoa },
               { key: 'ten_co_van_cu', label: 'Cố vấn cũ' },
               { key: 'ten_co_van_moi', label: 'Cố vấn mới', render: (row) => row.ten_co_van_moi || '-' },
-              { key: 'ly_do', label: 'Lý do dừng' },
+              { key: 'ly_do', label: 'Lý do dừng', render: (row) => <ExpandableText text={row.ly_do} /> },
               { key: 'nam_hoc', label: 'Năm học', render: (row) => row.nam_hoc || '-' }
             ]} rows={replacementHistory} />
           </section>

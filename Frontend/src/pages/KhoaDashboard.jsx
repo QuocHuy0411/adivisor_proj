@@ -4,6 +4,7 @@ import { api } from '../api/client.js';
 import AppLayout from '../components/AppLayout.jsx';
 import DataTable from '../components/DataTable.jsx';
 import Toast from '../components/Toast.jsx';
+import ExpandableText from '../components/ExpandableText.jsx';
 
 const WAITING = 'Chờ phân công';
 const ASSIGNED = 'Đã phân công';
@@ -11,7 +12,7 @@ const DIRECTOR_WAITING = 'Chờ giám đốc duyệt';
 const CLOSED = 'Đã đóng';
 const ASSIGNMENT_RECEIVED_STATUSES = [WAITING, ASSIGNED, DIRECTOR_WAITING];
 const ASSIGNMENT_HISTORY_STATUSES = [CLOSED];
-const REPLACEMENT_HISTORY_STATUSES = ['Đã đóng', 'Bị từ chối'];
+const REPLACEMENT_HISTORY_STATUSES = ['Đã đóng'];
 const sectionTitle = {
   assignment: 'Phân công',
   employees: 'Danh sách nhân viên',
@@ -261,7 +262,7 @@ export default function KhoaDashboard() {
               { key: 'ten_lop', label: 'Lớp' },
               { key: 'ten_co_van_cu', label: 'CVHT cũ' },
               { key: 'ten_co_van_moi', label: 'CVHT mới' },
-              { key: 'ly_do', label: 'Lý do dừng' },
+              { key: 'ly_do', label: 'Lý do dừng', render: (row) => <ExpandableText text={row.ly_do} /> },
               { key: 'trang_thai', label: 'Trạng thái' }
             ]} rows={pendingReplacementRequests} actions={(row) => (
               <>

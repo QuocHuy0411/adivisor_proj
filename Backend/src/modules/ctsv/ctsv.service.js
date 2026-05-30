@@ -287,6 +287,7 @@ export async function listAssignments() {
        WHERE acc.is_active = true
        GROUP BY tk.ma_khoa
      ) tk ON tk.ma_khoa = l.ma_khoa
+     WHERE pc.ma_phan_cong NOT IN (SELECT ma_phan_cong FROM YEU_CAU_THAY_THE)
      ORDER BY pc.nam_hoc DESC, l.ma_khoa, pc.trang_thai`
   );
 }
@@ -337,6 +338,7 @@ export async function resetClassAdvisors() {
       `SELECT ma_phan_cong
        FROM PHAN_CONG
        WHERE trang_thai IN (?, ?, ?, ?)
+         AND ma_phan_cong NOT IN (SELECT ma_phan_cong FROM YEU_CAU_THAY_THE)
        LIMIT 1`,
       [PHAN_CONG.CHO_PHAN_CONG, PHAN_CONG.DA_PHAN_CONG, PHAN_CONG.CHO_GIAM_DOC_DUYET, PHAN_CONG.BI_TU_CHOI]
     );
@@ -345,7 +347,8 @@ export async function resetClassAdvisors() {
     }
     await connection.execute(
       `DELETE FROM PHAN_CONG
-       WHERE trang_thai IN (?, ?, ?, ?)`,
+       WHERE trang_thai IN (?, ?, ?, ?)
+         AND ma_phan_cong NOT IN (SELECT ma_phan_cong FROM YEU_CAU_THAY_THE)`,
       [PHAN_CONG.CHO_PHAN_CONG, PHAN_CONG.DA_PHAN_CONG, PHAN_CONG.CHO_GIAM_DOC_DUYET, PHAN_CONG.BI_TU_CHOI]
     );
     const [classResult] = await connection.execute(
@@ -496,7 +499,7 @@ export async function rejectAssignment(id) {
 export async function approveAllAssignments(user) {
   return transaction(async (connection) => {
     const [rows] = await connection.execute(
-      'SELECT ma_phan_cong FROM PHAN_CONG WHERE trang_thai = ? ORDER BY ma_phan_cong',
+      'SELECT ma_phan_cong FROM PHAN_CONG WHERE trang_thai = ? AND ma_phan_cong NOT IN (SELECT ma_phan_cong FROM YEU_CAU_THAY_THE) ORDER BY ma_phan_cong',
       [PHAN_CONG.CHO_GIAM_DOC_DUYET]
     );
     if (!rows.length) throw badRequest('Không có phân công nào cần duyệt');
@@ -510,7 +513,7 @@ export async function approveAllAssignments(user) {
 export async function rejectAllAssignments() {
   return transaction(async (connection) => {
     const [rows] = await connection.execute(
-      'SELECT ma_phan_cong, ma_lop FROM PHAN_CONG WHERE trang_thai = ?',
+      'SELECT ma_phan_cong, ma_lop FROM PHAN_CONG WHERE trang_thai = ? AND ma_phan_cong NOT IN (SELECT ma_phan_cong FROM YEU_CAU_THAY_THE)',
       [PHAN_CONG.CHO_GIAM_DOC_DUYET]
     );
     if (!rows.length) throw badRequest('Không có phân công nào cần từ chối');
@@ -590,7 +593,7 @@ export async function approveReplacement(user, id) {
     ]);
     await createNotification(connection, user.ma_nhan_vien, {
       tieu_de: 'Thông báo thay đổi cố vấn học tập',
-      noi_dung: `Lớp ${request.ten_lop} đã được thay đổi cố vấn học tập mới: ${request.ten_co_van_moi}.`,
+      noi_dung: `Đã thay thế cho lớp ${request.ten_lop} và cố vấn mới là ${request.ten_co_van_moi}.`,
       recipients: [
         { loai_nguoi_nhan: 'lop', ma_doi_tuong: request.ma_lop },
         { loai_nguoi_nhan: 'khoa', ma_doi_tuong: request.ma_khoa },
@@ -621,9 +624,9 @@ export async function approveAllReplacements(user) {
   const rows = await query(
     `SELECT ma_yeu_cau, trang_thai
      FROM YEU_CAU_THAY_THE
-     WHERE trang_thai = :step1
+     WHERE trang_thai = ?
      ORDER BY ma_yeu_cau`,
-    { step1: YEU_CAU_THAY_THE.DA_DUYET_BUOC_1 }
+    [YEU_CAU_THAY_THE.DA_DUYET_BUOC_1]
   );
   if (!rows.length) throw badRequest('Không có yêu cầu thay thế nào cần duyệt');
   for (const row of rows) {
@@ -635,12 +638,9 @@ export async function approveAllReplacements(user) {
 export async function rejectAllReplacements() {
   const result = await query(
     `UPDATE YEU_CAU_THAY_THE
-     SET trang_thai = :status
-     WHERE trang_thai = :step1`,
-    {
-      status: YEU_CAU_THAY_THE.BI_TU_CHOI,
-      step1: YEU_CAU_THAY_THE.DA_DUYET_BUOC_1
-    }
+     SET trang_thai = ?
+     WHERE trang_thai = ?`,
+    [YEU_CAU_THAY_THE.BI_TU_CHOI, YEU_CAU_THAY_THE.DA_DUYET_BUOC_1]
   );
   if (!result.affectedRows) throw badRequest('Không có yêu cầu thay thế nào cần từ chối');
   return { message: `Đã từ chối ${result.affectedRows} yêu cầu thay thế` };
