@@ -120,3 +120,5 @@ CREATE TABLE IF NOT EXISTS DANG_NHAP_THAT_BAI (
   so_lan INT NOT NULL DEFAULT 0,
   PRIMARY KEY (ten_tai_khoan, ngay)
 );
+
+

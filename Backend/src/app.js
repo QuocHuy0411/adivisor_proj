@@ -32,7 +32,6 @@ app.use('/api/covan', covanRoutes);
 app.use('/api/sinhvien', sinhvienRoutes);
 app.use('/api/notifications', notificationRoutes);
 
-console.log("Dang thay doi")
 
 app.use((req, res) => {
   res.status(404).json({ message: 'Endpoint không tồn tại' });
