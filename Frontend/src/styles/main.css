@@ -605,12 +605,15 @@ nav a:hover {
 
 table {
   border-collapse: collapse;
+  table-layout: fixed;
+  min-width: 720px;
   width: 100%;
 }
 
 th,
 td {
   border-bottom: 1px solid #e5edf6;
+  overflow-wrap: anywhere;
   padding: 10px;
   text-align: left;
   vertical-align: top;
@@ -631,10 +634,34 @@ th {
   padding: 6px 8px;
 }
 
+.align-left {
+  text-align: left;
+}
+
+.align-center {
+  text-align: center;
+}
+
+.filter-row input.align-center {
+  text-align: center;
+}
+
+.data-table-action-col {
+  width: 150px;
+}
+
+.actions-header {
+  min-width: 132px;
+  text-align: center;
+  width: 150px;
+}
+
 .actions {
+  align-items: center;
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+  justify-content: center;
   min-width: 132px;
 }
 

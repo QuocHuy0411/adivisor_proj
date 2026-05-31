@@ -5,6 +5,7 @@ import AppLayout from '../components/AppLayout.jsx';
 export default function SinhVienDashboard() {
   const [advisor, setAdvisor] = useState(null);
 
+  // Sinh vien chi tai thong tin CVHT cua lop minh thong qua session hien tai.
   useEffect(() => {
     api.get('/sinhvien/advisor').then((res) => setAdvisor(res.data));
   }, []);

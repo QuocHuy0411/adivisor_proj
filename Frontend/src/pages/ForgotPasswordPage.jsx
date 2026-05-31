@@ -19,6 +19,7 @@ export default function ForgotPasswordPage() {
   if (user?.da_doi_mk) return <Navigate to="/" replace />;
   if (user && !user.da_doi_mk) return <Navigate to="/change-password" replace />;
 
+  // Buoc 1 quen mat khau: gui email len backend de sinh va gui OTP.
   async function requestOtp(event) {
     event.preventDefault();
     setError('');
@@ -36,6 +37,7 @@ export default function ForgotPasswordPage() {
     }
   }
 
+  // Buoc 2: xac minh OTP va nhan reset_token ngan han neu ma hop le.
   async function verifyOtp(event) {
     event.preventDefault();
     setError('');
@@ -56,6 +58,7 @@ export default function ForgotPasswordPage() {
     }
   }
 
+  // Buoc 3: dat mat khau moi bang reset_token, sau thanh cong quay ve man dang nhap.
   async function resetPassword(event) {
     event.preventDefault();
     setError('');

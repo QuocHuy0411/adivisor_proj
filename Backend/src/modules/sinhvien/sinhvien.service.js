@@ -1,6 +1,7 @@
 import { query } from '../../config/db.js';
 import { notFound } from '../../utils/httpError.js';
 
+// Dashboard Sinh vien: tra ve CVHT dang phu trach dung lop cua sinh vien dang dang nhap.
 export async function myAdvisor(user) {
   const rows = await query(
     `SELECT l.ma_lop, l.ten_lop, l.nam_hoc, l.chuyen_nganh,
@@ -18,6 +19,7 @@ export async function myAdvisor(user) {
   return rows[0];
 }
 
+// Dashboard Sinh vien: lay profile ca nhan kem lop va khoa, chi trong pham vi ma_sinh_vien cua session.
 export async function myProfile(user) {
   const rows = await query(
     `SELECT sv.*, tk.email, l.ten_lop, k.ten_khoa

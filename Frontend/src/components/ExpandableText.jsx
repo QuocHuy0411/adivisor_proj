@@ -1,36 +1,59 @@
 import { useState } from 'react';
 
-export default function ExpandableText({ text, maxWords = 50 }) {
+export default function ExpandableText({ text }) {
   const [expanded, setExpanded] = useState(false);
 
   if (!text) return '-';
 
-  const words = text.split(/\s+/);
-  const isLong = words.length > maxWords;
-
   return (
-    <div style={{ maxWidth: '280px', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
-      {expanded || !isLong ? text : `${words.slice(0, maxWords).join(' ')}...`}
-      {isLong && (
-        <div style={{ marginTop: '4px' }}>
-          <button 
-            type="button" 
-            onClick={() => setExpanded(!expanded)}
-            style={{
-              background: 'none',
-              border: 'none',
-              color: '#0ea5e9',
-              padding: 0,
-              fontSize: '0.9em',
-              cursor: 'pointer',
-              fontWeight: 500,
-              textDecoration: 'underline'
-            }}
-          >
-            {expanded ? 'Thu gọn' : 'Xem thêm'}
-          </button>
-        </div>
-      )}
+    <div style={{ maxWidth: '280px' }}>
+      <button
+        type="button"
+        onClick={() => setExpanded(!expanded)}
+        title={expanded ? 'Thu gọn' : 'Xem đầy đủ'}
+        style={{
+          width: '100%',
+          background: 'none',
+          border: 'none',
+          color: 'inherit',
+          cursor: 'pointer',
+          font: 'inherit',
+          padding: 0,
+          textAlign: 'left'
+        }}
+      >
+        <span
+          style={expanded ? {
+            whiteSpace: 'pre-wrap',
+            wordBreak: 'break-word'
+          } : {
+            display: 'block',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap'
+          }}
+        >
+          {text}
+        </span>
+      </button>
+      {expanded ? (
+        <button
+          type="button"
+          onClick={() => setExpanded(false)}
+          style={{
+            background: 'none',
+            border: 'none',
+            color: '#0ea5e9',
+            padding: '4px 0 0',
+            fontSize: '0.9em',
+            cursor: 'pointer',
+            fontWeight: 500,
+            textDecoration: 'underline'
+          }}
+        >
+          Thu gọn
+        </button>
+      ) : null}
     </div>
   );
 }

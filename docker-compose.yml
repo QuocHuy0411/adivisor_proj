@@ -53,6 +53,47 @@ services:
       - /app/node_modules
     command: sh -c "npm run db:init && npm run dev"
 
+  backend-springboot:
+    build:
+      context: ./BackendSpringBoot
+    container_name: adivisor-backend-springboot
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    env_file:
+      - .env
+    environment:
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_NAME: ${DB_NAME:-adivisor}
+      DB_USER: ${DB_USER:-adivisor}
+      DB_PASSWORD: ${DB_PASSWORD:-adivisor_password}
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: 6379
+      JWT_SECRET: ${JWT_SECRET:-adivisor_dev_secret_change_me}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-dev_refresh_secret_change_me}
+      SMTP_HOST: ${SMTP_HOST:-smtp.gmail.com}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM: ${SMTP_FROM:-}
+      GG_CLIENT_ID: ${GG_CLIENT_ID:-}
+      GG_CLIENT_SECRET: ${GG_CLIENT_SECRET:-}
+      GG_REDIRECT_URI: ${GG_REDIRECT_URI:-http://localhost:8080/api/auth/google/callback}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:5173}
+    ports:
+      - "8080:8080"
+
+  redis:
+    image: redis:7-alpine
+    container_name: adivisor-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+
   frontend:
     build:
       context: ./Frontend
@@ -60,6 +101,7 @@ services:
     restart: unless-stopped
     depends_on:
       - backend
+      - backend-springboot
     environment:
       VITE_API_URL: ${VITE_API_URL:-http://localhost:5000/api}
       VITE_SPRING_BOOT_API_URL: ${VITE_SPRING_BOOT_API_URL:-http://localhost:8080/api}
