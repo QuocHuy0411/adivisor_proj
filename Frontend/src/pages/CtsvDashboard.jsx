@@ -28,8 +28,7 @@ const DIRECTOR_APPROVED_REPLACEMENT = 'Giám đốc đã duyệt';
 const REVIEWABLE_REPLACEMENT_STATUSES = [FACULTY_APPROVED_REPLACEMENT, DIRECTOR_REVIEWING_REPLACEMENT];
 const REPLACEMENT_HISTORY_STATUSES = [
   DIRECTOR_APPROVED_REPLACEMENT,
-  CLOSED,
-  REJECTED
+  CLOSED
 ];
 
 const SearchIcon = () => (
@@ -404,7 +403,7 @@ export default function CtsvDashboard() {
       || String(b.ten_lop || '').localeCompare(String(a.ten_lop || '')));
 
   const replacementHistory = requests
-    .filter((row) => REPLACEMENT_HISTORY_STATUSES.includes(row.trang_thai) && (row.trang_thai !== REJECTED || row.ma_co_van_moi))
+    .filter((row) => REPLACEMENT_HISTORY_STATUSES.includes(row.trang_thai))
     .sort((a, b) => yearRank(b.nam_hoc) - yearRank(a.nam_hoc)
       || String(b.ten_khoa || '').localeCompare(String(a.ten_khoa || ''))
       || classRank(b.ten_lop) - classRank(a.ten_lop)
