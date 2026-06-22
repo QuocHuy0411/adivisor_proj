@@ -167,7 +167,7 @@ export async function changePassword(user, { mat_khau_cu, mat_khau_moi, nhap_lai
         'UPDATE TAI_KHOAN SET mat_khau = :hashed, da_doi_mk = true WHERE ma_tai_khoan = :id',
         { hashed, id: user.ma_tai_khoan }
     );
-    return { message: 'Doi mat khau thanh cong' };
+    return { message: 'Đổi mật khẩu thành công' };
 }
 
 // Kiem tra mat khau moi dung chuan chung cho ca doi mat khau va quen mat khau.
@@ -235,7 +235,7 @@ export async function forgotPassword({ email }) {
         { email }
     );
     const account = rows[0];
-    if (!account) throw badRequest('Email khong ton tai trong he thong');
+    if (!account) throw badRequest('Email không tồn tại trong hệ thống');
     if (!account.is_active) throw forbidden('Tài khoản đã bị khóa hoặc ngừng hoạt động');
 
     const otp = generateOtp();

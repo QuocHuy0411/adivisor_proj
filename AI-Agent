@@ -1,0 +1,1303 @@
+# AI-Agent - Ho so ky thuat tai tao du an Adivisor
+
+Tai lieu nay duoc viet de mot AI agent khac co the hieu va code lai du an Adivisor voi do trung thanh cao nhat. Du an la he thong web quan ly va phan cong Co van hoc tap (CVHT) cho lop sinh vien, gom 3 ung dung chay chung mot database MySQL:
+
+- `Frontend`: React 18 + Vite, giao dien theo vai tro.
+- `Backend`: Node.js + Express, xu ly nghiep vu chinh.
+- `BackendSpringBoot`: Spring Boot 4 + Java 21, xu ly auth/JWT/OTP/Google OAuth cho frontend hien tai.
+- `docker-compose.yml`: khoi chay MySQL, Redis, Node backend, Spring Boot backend, frontend va phpMyAdmin.
+
+Luu y quan trong:
+
+- Source hien tai co nhieu chuoi tieng Viet trong code. Neu terminal hien thi mojibake, khong duoc tu y doi literal trang thai; phai copy dung chuoi trong source hoac luu UTF-8 dung.
+- Frontend hien tai route moi request `/auth/*` sang Spring Boot (`VITE_SPRING_BOOT_API_URL`) va cac request nghiep vu sang Node (`VITE_API_URL`).
+- Node backend van co module auth rieng tuong duong, nhung frontend dang uu tien Spring Boot cho auth.
+- Khong dua gia tri bi mat that trong `.env` vao code hay tai lieu public. Can dung placeholder cho SMTP/JWT/OAuth.
+- Worktree luc doc co 2 file bi xoa san la `AGENTS.md` va `AI-CONTEXT.md`; khong lien quan den tai tao chuc nang.
+
+## 1. Cong nghe va dependencies
+
+### Frontend
+
+- Runtime: Node.js 20 trong Docker, Node 18+ co the chay local.
+- Framework: React 18.2, React DOM 18.2, Vite 5.2, React Router DOM 6.23.
+- HTTP: Axios 1.6.
+- Export Excel: `xlsx` 0.18.
+- Entry: `Frontend/src/main.jsx`.
+- Dev command: `npm run dev` -> `vite --host 0.0.0.0`.
+- Build command: `npm run build` -> `vite build`.
+- Port mac dinh: `5173`.
+
+### Backend Node
+
+- Runtime: Node 20 Alpine trong Docker.
+- Module type: ESM (`"type": "module"`).
+- Framework: Express 4.19.
+- DB driver: mysql2/promise 3.9.
+- Auth utils: jsonwebtoken 9, bcryptjs 2.4.
+- Middleware: cors, helmet, cookie-parser, multer.
+- CSV: csv-parse.
+- Email: nodemailer.
+- Entry: `Backend/src/server.js`.
+- Dev command: `npm run dev` -> `nodemon src/server.js`.
+- Start command: `npm start` -> `node src/server.js`.
+- DB init: `npm run db:init` -> `node src/database/init-db.js`.
+- Port mac dinh: `5000`.
+
+### Backend Spring Boot
+
+- Java: 21.
+- Spring Boot parent: 4.0.1.
+- Dependencies: Web, Data JPA, Validation, Data Redis, Security Crypto, OAuth2 Resource Server, OAuth2 Client, Mail, MySQL connector, Lombok, Nimbus JOSE JWT, Jackson JSR310.
+- Entry: `BackendSpringBootApplication`.
+- Config: `BackendSpringBoot/src/main/resources/application.yaml`.
+- Port mac dinh: `8080`.
+
+### Database va services
+
+- MySQL 8.0, database mac dinh `adivisor`, lower_case_table_names=1.
+- Redis 7 Alpine chay de phuc vu Spring Boot config, nhung code auth hien tai chu yeu luu refresh token trong MySQL.
+- phpMyAdmin port `8081`.
+
+## 2. Cau truc thu muc can co
+
+```txt
+adivisor/
+  .env
+  .gitignore
+  docker-compose.yml
+  README.md
+  AI-Agent
+  Backend/
+    Dockerfile
+    .env.example
+    package.json
+    package-lock.json
+    src/
+      app.js
+      server.js
+      config/
+        db.js
+        env.js
+      database/
+        schema.sql
+        seed.sql
+        init-db.js
+      middlewares/
+        auth.js
+        errorHandler.js
+      modules/
+        auth/
+          auth.routes.js
+          auth.service.js
+        admin/
+          admin.routes.js
+          admin.service.js
+        ctsv/
+          ctsv.routes.js
+          ctsv.service.js
+        khoa/
+          khoa.routes.js
+          khoa.service.js
+        covan/
+          covan.routes.js
+          covan.service.js
+        sinhvien/
+          sinhvien.routes.js
+          sinhvien.service.js
+        notifications/
+          notifications.routes.js
+          notifications.service.js
+      utils/
+        asyncHandler.js
+        csv.js
+        httpError.js
+        ids.js
+        passwords.js
+        stateMachine.js
+  BackendSpringBoot/
+    Dockerfile
+    pom.xml
+    mvnw
+    mvnw.cmd
+    src/main/java/com/example/backendspringboot/
+      BackendSpringBootApplication.java
+      configuration/
+      controller/
+      dto/
+      entity/
+      enums/
+      exception/
+      mapper/
+      repository/
+      service/
+      util/
+      validator/
+    src/main/resources/application.yaml
+    src/test/java/com/example/backendspringboot/BackendSpringBootApplicationTests.java
+  Frontend/
+    Dockerfile
+    .env.example
+    index.html
+    package.json
+    package-lock.json
+    vite.config.js
+    public/
+      bg-login.jpg
+      ptit-logo.png
+    src/
+      App.jsx
+      main.jsx
+      api/client.js
+      components/
+      context/AuthContext.jsx
+      pages/
+      styles/main.css
+```
+
+## 3. Docker Compose
+
+`docker-compose.yml` dinh nghia:
+
+- `mysql`: image `mysql:8.0`, container `adivisor-mysql`, command `--lower_case_table_names=1`, healthcheck bang `mysqladmin ping`, volume `mysql_data`, port `${DB_PORT:-3306}:3306`.
+- `backend`: build `./Backend`, depends_on mysql healthy, env DB host `mysql`, port `${PORT:-5000}:5000`, mount source va `/app/node_modules`, command `sh -c "npm run db:init && npm run dev"`.
+- `backend-springboot`: build `./BackendSpringBoot`, depends_on mysql va redis, `env_file: .env`, DB host `mysql`, Redis host `redis`, port `8080:8080`.
+- `redis`: image `redis:7-alpine`, port `6379:6379`.
+- `frontend`: build `./Frontend`, depends_on backend va backend-springboot, env `VITE_API_URL`, `VITE_SPRING_BOOT_API_URL`, port `5173:5173`, command `npm run dev`.
+- `phpmyadmin`: image `phpmyadmin:5.2`, connects mysql root, port `${PHPMYADMIN_PORT:-8081}:80`.
+
+Chay tat ca:
+
+```bash
+docker compose up -d --build
+```
+
+Reset database:
+
+```bash
+docker compose down -v
+docker compose up -d --build
+```
+
+## 4. Bien moi truong
+
+Root `.env` va cac `.env.example` can co cac bien:
+
+```env
+NODE_ENV=development
+PORT=5000
+FRONTEND_URL=http://localhost:5173
+
+DB_HOST=localhost
+DB_PORT=3306
+DB_NAME=adivisor
+DB_USER=adivisor
+DB_PASSWORD=adivisor_password
+DB_ROOT_PASSWORD=root_password
+
+JWT_SECRET=adivisor_dev_secret_change_me
+JWT_REFRESH_SECRET=dev_refresh_secret_change_me
+JWT_EXPIRES_IN=8h
+JWT_ACCESS_EXPIRES_SECONDS=28800
+JWT_REFRESH_EXPIRES_SECONDS=604800
+PASSWORD_RESET_EXPIRES_IN=15m
+PASSWORD_RESET_OTP_EXPIRES_IN=5m
+OTP_EXPIRES_SECONDS=300
+
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_SECURE=false
+SMTP_USER=your_gmail@gmail.com
+SMTP_PASSWORD=your_gmail_app_password
+SMTP_FROM=your_gmail@gmail.com
+
+GG_CLIENT_ID=
+GG_CLIENT_SECRET=
+GG_REDIRECT_URI=http://localhost:8080/api/auth/google/callback
+COOKIE_SECURE=false
+
+VITE_API_URL=http://localhost:5000/api
+VITE_SPRING_BOOT_API_URL=http://localhost:8080/api
+PHPMYADMIN_PORT=8081
+```
+
+Khong hardcode credential SMTP that.
+
+## 5. Database schema
+
+Database MySQL tao bang bang `Backend/src/database/schema.sql`. `init-db.js` tao database neu chua co, chay schema, sua `CVHT.ma_tai_khoan` thanh nullable, them cot `ten_truong_khoa` vao `PHAN_CONG` va `YEU_CAU_THAY_THE` neu thieu, chay seed, roi seed account mau.
+
+### Bang `TAI_KHOAN`
+
+- `ma_tai_khoan VARCHAR(50) PRIMARY KEY`
+- `ten_tai_khoan VARCHAR(100) NOT NULL UNIQUE`
+- `mat_khau VARCHAR(255) NOT NULL`
+- `email VARCHAR(255) NOT NULL UNIQUE`
+- `loai_tai_khoan VARCHAR(20) NOT NULL`
+- `da_doi_mk BOOLEAN NOT NULL DEFAULT FALSE`
+- `is_active BOOLEAN NOT NULL DEFAULT TRUE`
+- CHECK role in `admin`, `ctsv`, `khoa`, `sinhvien`, `covan`.
+
+### Bang role/profile
+
+- `QUAN_TRI_VIEN(ma_admin PK, ma_tai_khoan UNIQUE FK, ho_va_ten)`
+- `NHAN_VIEN_CTSV(ma_nhan_vien PK, ma_tai_khoan UNIQUE FK, ho_va_ten)`
+- `KHOA(ma_khoa PK, ten_khoa)`
+- `TRUONG_KHOA(ma_nhan_vien PK, ma_tai_khoan UNIQUE FK, ma_khoa FK, ho_va_ten)`
+- `CVHT(ma_co_van PK, ma_tai_khoan NULL UNIQUE FK, ma_khoa FK, ho_va_ten, so_dien_thoai, uu_tien INT DEFAULT 2 CHECK 1..3, chuyen_nganh)`
+- `SINH_VIEN(ma_sinh_vien PK, ma_tai_khoan UNIQUE FK, ma_lop FK, ho_va_ten, so_dien_thoai)`
+
+### Bang lop va workflow
+
+- `LOP(ma_lop PK, ma_khoa FK, ten_lop, so_luong_sv INT DEFAULT 0, chuyen_nganh, nam_hoc, ma_co_van NULL FK, trang_thai_lop DEFAULT 'Chưa có cố vấn')`
+- `PHAN_CONG(ma_phan_cong PK, ma_lop FK, ma_co_van NULL FK, nam_hoc, trang_thai, ngay_phan_cong DATE NULL, ten_truong_khoa NULL)`
+- `YEU_CAU_THAY_THE(ma_yeu_cau PK, ma_co_van FK old advisor, ma_phan_cong FK, ly_do VARCHAR(1000), trang_thai, ngay_yeu_cau, ten_truong_khoa NULL)`
+
+### Bang notification va auth support
+
+- `THONG_BAO(ma_thong_bao PK, ma_nhan_vien FK NHAN_VIEN_CTSV, tieu_de, noi_dung TEXT, ngay_gui DATE)`
+- `THONG_BAO_NGUOI_NHAN(nguoi_nhan_id PK, ma_thong_bao FK, loai_nguoi_nhan, ma_doi_tuong)`
+- `DANG_NHAP_THAT_BAI(ten_tai_khoan, ngay, so_lan, PRIMARY KEY(ten_tai_khoan, ngay))`
+- `REFRESH_TOKENS(id AUTO_INCREMENT PK, ma_tai_khoan FK ON DELETE CASCADE, token VARCHAR(500), expires_at DATETIME)`
+
+### Seed du lieu
+
+`seed.sql` insert ignore 4 khoa:
+
+- `CNTT` - Cong nghe thong tin.
+- `VT` - Vien thong.
+- `QTKD` - Quan tri kinh doanh.
+- `KTDT` - Ky thuat dien tu.
+
+`init-db.js` seed account mau voi bcrypt:
+
+- Admin: account `TK_ADMIN`, username `admin`, password mac dinh `admin`, role `admin`, profile `ADMIN01`.
+- CTSV: account `TK_CTSV01`, username `CTSV01`, password `ctsv`, role `ctsv`, profile `CTSV01`.
+- Truong khoa CNTT: account `TK_TK_CNTT`, username `TKCNTT01`, password `cntt02`, role `khoa`, profile `TKCNTT01`.
+- CVHT: account `TK_CVHT01`, username `CVHT01`, password `cvht`, role `covan`, profile `CVHT01`.
+- Sinh vien: account `TK_SV001`, username `SV001`, password `0900000001`, role `sinhvien`, profile `SV001`.
+- Lop mau `D21CQCN01`, khoa `CNTT`, nam hoc `2026-2027`, chua co CVHT, 1 sinh vien.
+
+## 6. Trang thai va state machine
+
+File `Backend/src/utils/stateMachine.js` la source of truth.
+
+### Lop (`LOP`)
+
+- `CHUA_CO_CVHT`: "Chưa có cố vấn"
+- `LOP_TRONG`: "Lớp trống"
+- `CHO_PHAN_CONG`: "Chờ phân công"
+- `DANG_PHAN_CONG`: "Đang phân công"
+- `DA_CO_CVHT`: "Đã có cố vấn"
+- `DA_DONG`: "Đã đóng"
+- `BI_TU_CHOI`: "Bị từ chối"
+
+### Phan cong (`PHAN_CONG`)
+
+- `CHO_PHAN_CONG`: "Chờ phân công"
+- `DA_PHAN_CONG`: "Đã phân công"
+- `CHO_GIAM_DOC_DUYET`: "Chờ giám đốc duyệt"
+- `DA_DONG`: "Đã đóng"
+- `BI_TU_CHOI`: "Bị từ chối"
+
+Allowed transitions:
+
+- `Chờ phân công` -> `Đã phân công`
+- `Đã phân công` -> `Chờ giám đốc duyệt`
+- `Chờ giám đốc duyệt` -> `Đã đóng` hoặc `Chờ phân công`
+- `Đã đóng` -> none
+
+### Yeu cau thay the (`YEU_CAU_THAY_THE`)
+
+- `CHO_DUYET`: "Chờ duyệt"
+- `KHOA_DANG_DUYET`: "Khoa đang duyệt"
+- `KHOA_DA_DUYET`: "Khoa đã duyệt"
+- `GIAM_DOC_DANG_DUYET`: "Giám đốc đang duyệt"
+- `GIAM_DOC_DA_DUYET`: "Giám đốc đã duyệt"
+- `DA_DONG`: "Đã đóng"
+- `BI_TU_CHOI`: "Bị từ chối"
+- Legacy aliases map ve cac literal tren.
+
+Allowed transitions:
+
+- `Chờ duyệt` -> `Khoa đang duyệt`, `Khoa đã duyệt`, `Bị từ chối`
+- `Khoa đang duyệt` -> `Khoa đã duyệt`, `Bị từ chối`
+- `Khoa đã duyệt` -> `Giám đốc đang duyệt`, `Giám đốc đã duyệt`, `Đã đóng`, `Bị từ chối`
+- `Giám đốc đang duyệt` -> `Giám đốc đã duyệt`, `Đã đóng`, `Bị từ chối`
+- `Giám đốc đã duyệt` -> `Đã đóng`
+- `Bị từ chối`, `Đã đóng` -> none
+
+## 7. Backend Node architecture
+
+### `config/env.js`
+
+Load dotenv va export `env`:
+
+- `port`, `nodeEnv`
+- `db.host`, `db.port`, `db.database`, `db.user`, `db.password`
+- `jwtSecret`, `jwtExpiresIn`, `jwtRefreshSecret`, `jwtRefreshExpiresIn`
+- `passwordResetExpiresIn`, `passwordResetOtpExpiresIn`
+- `smtp.host`, `smtp.port`, `smtp.secure`, `smtp.user`, `smtp.password`, `smtp.from`
+- `frontendUrl`
+
+### `config/db.js`
+
+- Tao mysql pool voi `waitForConnections`, `connectionLimit: 10`, `namedPlaceholders: true`, `dateStrings: true`.
+- `query(sql, params)` dung `pool.execute`.
+- `transaction(handler)` lay connection, begin, commit/rollback, release.
+
+### Middleware
+
+- `authenticate`: doc cookie `accessToken`, verify bang `env.jwtSecret`, load `TAI_KHOAN`, check `is_active`, load profile theo role, gan `req.user = { ma_tai_khoan, ...account, ...profile }`.
+- `requireRole(...roles)`: check `req.user.loai_tai_khoan`.
+- `requirePasswordChanged`: neu `da_doi_mk` false thi tra HTTP 428.
+- `errorHandler`: status mac dinh 500, message 500 la `Loi he thong`, development co `detail`.
+
+### Utils
+
+- `asyncHandler(handler)`: wrap promise catch next.
+- `httpError.js`: `HttpError`, `notFound`, `badRequest`, `forbidden`.
+- `ids.js`: `makeId(prefix)` = prefix + Date.now base36 uppercase + 5 random chars uppercase.
+- `passwords.js`: bcrypt hash 10 rounds, verify, default password:
+  - sinhvien: so_dien_thoai
+  - ctsv: `ctsv`
+  - covan: `cvht`
+  - admin: `admin`
+  - khoa: `cntt02`, `vt02`, `qtkd02`, `ktdt02` theo `ma_khoa`, fallback `khoa`
+  - fallback `123456`
+- `csv.js`: parse buffer UTF-8 with `columns: true`, `skip_empty_lines`, `trim`, `bom`; loi thi `badRequest`.
+
+### `app.js`
+
+- Uses `helmet`, `cors({ origin: env.frontendUrl, credentials: true })`, json 5mb, urlencoded, cookieParser.
+- Health: `GET /api/health` -> `{ status: "ok", service: "adivisor-backend" }`.
+- Mount:
+  - `/api/auth`
+  - `/api/admin`
+  - `/api/ctsv`
+  - `/api/khoa`
+  - `/api/covan`
+  - `/api/sinhvien`
+  - `/api/notifications`
+- 404 JSON `{ message: "Endpoint không tồn tại" }`.
+
+## 8. Node Auth module
+
+Frontend khong uu tien module nay, nhung phai code lai vi ton tai va tuong thich.
+
+Routes:
+
+- `POST /api/auth/login`
+- `POST /api/auth/logout`
+- `POST /api/auth/refresh-token`
+- `GET /api/auth/me`
+- `POST /api/auth/change-password`
+- `POST /api/auth/forgot-password`
+- `POST /api/auth/verify-reset-otp`
+- `POST /api/auth/reset-password`
+
+Cookie options:
+
+- `httpOnly: true`, `secure: env.nodeEnv === 'production'`, `sameSite: 'strict'`, `path: '/'`.
+- `accessToken` maxAge 15 minutes hardcoded in route.
+- `refreshToken` maxAge 7 days hardcoded in route.
+
+Service details:
+
+- Login brute-force: table `DANG_NHAP_THAT_BAI`, max 5 failed attempts per username per current date. Neu >=5 -> HTTP 429. Sai username hoac password tang dem va tra so lan con lai.
+- Login load account by `ten_tai_khoan`, check `is_active`, bcrypt compare, clear failures, build session.
+- `buildSession(account)`:
+  - load profile theo role tu bang role.
+  - JWT access signed with `env.jwtSecret`, payload: `ma_tai_khoan`, `ten_tai_khoan`, `loai_tai_khoan`, profile fields.
+  - JWT refresh signed with `env.jwtRefreshSecret`, payload `{ ma_tai_khoan, type: 'refresh' }`.
+  - insert refresh token vao `REFRESH_TOKENS` expires `DATE_ADD(NOW(), INTERVAL 7 DAY)`.
+  - return `{ accessToken, refreshToken, user }`, user co `email`, `da_doi_mk`, `is_active`.
+- Change password:
+  - fields `mat_khau_cu`, `mat_khau_moi`, `nhap_lai_mat_khau_moi`.
+  - require length >= 6, match confirm, old password dung.
+  - update `mat_khau`, `da_doi_mk=true`.
+- Forgot password:
+  - input `email`.
+  - require SMTP configured.
+  - find active account by email.
+  - generate 6-digit OTP.
+  - OTP token purpose `password_reset_otp`, `ma_tai_khoan`, `otp_hash`.
+  - OTP token secret = `env.jwtSecret + ":" + account.mat_khau + ":otp"`.
+  - hash OTP = sha256(`${ma_tai_khoan}:${otp}:${env.jwtSecret}`).
+  - send email text with subject "Mã OTP đặt lại mật khẩu Adivisor".
+  - return `otp_token`, `expires_in`.
+- Verify OTP:
+  - decode token first, verify account, verify token with otp secret, compare otp hash.
+  - issue reset token purpose `password_reset`, secret = `env.jwtSecret + ":" + account.mat_khau`.
+- Reset password:
+  - verify reset token and update hashed password, `da_doi_mk=true`.
+- Refresh:
+  - read refresh token cookie, check exists and not expired in DB, verify signature, load active account, delete old token, build new session.
+- Logout: delete refresh token from DB.
+
+## 9. Node Admin module
+
+All routes require `authenticate`, `requirePasswordChanged`, `requireRole('admin')`.
+
+Routes:
+
+- `GET /api/admin/faculties`
+- `GET /api/admin/employee-groups`
+- `GET /api/admin/employee-groups/:id/accounts`
+- `PATCH /api/admin/employee-accounts/:id`
+- `DELETE /api/admin/employee-accounts/:id`
+- `GET /api/admin/faculties/:id/employees`
+- `GET /api/admin/advisors/info`
+- `GET /api/admin/advisor-groups/:id/advisors`
+- `PATCH /api/admin/advisors/info/:id`
+- `DELETE /api/admin/advisors/info/:id`
+- `GET /api/admin/accounts`
+- `PATCH /api/admin/accounts/:id/status`
+- `POST /api/admin/faculty-heads/import` multipart `file`
+- `POST /api/admin/ctsv/import` multipart `file`
+- `POST /api/admin/advisors/info/import` multipart `file`
+- `POST /api/admin/advisors/accounts/import` multipart `file`
+- `POST /api/admin/advisors/full/import` multipart `file`
+- Legacy disabled:
+  - `POST /api/admin/staff` -> 410
+  - `POST /api/admin/advisors` -> 410
+  - `POST /api/admin/advisors/import` maps to `importAdvisorInfo`
+
+Core behavior:
+
+- `listEmployeeGroups`: for each khoa count `TRUONG_KHOA + CVHT`, count CVHT, append CTSV group `{ ma_don_vi:'CTSV', ten_don_vi:'Cong tac sinh vien' }`.
+- `listEmployeeGroupAccounts('CTSV')`: list CTSV employees and account status.
+- `listEmployeeGroupAccounts(ma_khoa)`: union active/inactive Truong Khoa and CVHT for khoa, order active khoa first.
+- `listAdvisorInfo(ma_khoa?)`: list CVHT with optional khoa filter, left join account email.
+- `updateEmployeeAccount`: only CTSV/khoa accounts, not admin/covan; update email and ho ten in role table.
+- `deleteEmployeeAccount`: not admin, not covan, not current user; delete role record then `TAI_KHOAN`.
+- `updateAdvisorInfo`: update CVHT profile fields `ho_va_ten`, `so_dien_thoai`, `ma_khoa`, `chuyen_nganh`; `uu_tien` not edited here.
+- `deleteAdvisorInfo`: delete replacement requests where old advisor, null out `PHAN_CONG.ma_co_van`, null out `LOP.ma_co_van`, detach/delete account if exists, delete CVHT.
+- `updateAccountStatus`: cannot lock admin or current user.
+
+CSV helpers:
+
+- `valueOf(row, keys)` reads many header aliases.
+- Faculty in CSV must match full `KHOA.ten_khoa` case-insensitive, not only code.
+- `normalizePriority` default 2, must integer 1..3.
+- `assertAccountAvailable` blocks duplicate username/email.
+
+Import contracts:
+
+- Faculty heads: columns ma nhan vien, ho ten, email, ten khoa; username = ma_nhan_vien; role `khoa`; default password by khoa; insert `TRUONG_KHOA`.
+- CTSV: columns ma nhan vien, ho ten, email; username = ma_nhan_vien; role `ctsv`; default `ctsv`.
+- Advisor info: columns ma nhan vien, ho ten, so dien thoai, ten khoa, chuyen nganh, uu tien; creates `CVHT` with `ma_tai_khoan=NULL`.
+- Advisor accounts: columns ma nhan vien, email; requires existing CVHT without account; role `covan`; username = ma_co_van; default `cvht`; update `CVHT.ma_tai_khoan`.
+- Advisor full: columns ma nhan vien, ho ten, so dien thoai, email, ten khoa, chuyen nganh, uu tien; create/update CVHT then create account.
+
+## 10. Node CTSV module
+
+All routes require role `ctsv`.
+
+Routes:
+
+- Students:
+  - `GET /api/ctsv/students`
+  - `POST /api/ctsv/students`
+  - `POST /api/ctsv/students/import`
+  - `PATCH /api/ctsv/students/:id`
+  - `PATCH /api/ctsv/students/:id/account-status`
+  - `DELETE /api/ctsv/students/:id`
+- Classes:
+  - `GET /api/ctsv/class-groups`
+  - `GET /api/ctsv/classes`
+  - `POST /api/ctsv/classes`
+  - `POST /api/ctsv/classes/import`
+  - `POST /api/ctsv/classes/reset-advisors`
+  - `POST /api/ctsv/classes/send-to-faculties`
+  - `PATCH /api/ctsv/classes/:id`
+  - `DELETE /api/ctsv/classes/:id`
+  - `DELETE /api/ctsv/classes/:id/students`
+- Assignments:
+  - `GET /api/ctsv/assignments`
+  - `POST /api/ctsv/assignments`
+  - `POST /api/ctsv/assignments/approve-all`
+  - `POST /api/ctsv/assignments/reject-all`
+  - `POST /api/ctsv/assignments/:id/send`
+  - `POST /api/ctsv/assignments/:id/approve`
+  - `POST /api/ctsv/assignments/:id/reject`
+- Replacement:
+  - `GET /api/ctsv/replacement-requests`
+  - `POST /api/ctsv/replacement-requests/approve-all`
+  - `POST /api/ctsv/replacement-requests/reject-all`
+  - `POST /api/ctsv/replacement-requests/:id/approve`
+  - `POST /api/ctsv/replacement-requests/:id/reject`
+
+Key helper rules:
+
+- `currentAcademicYear(date)`: if month >= 9, startYear = current year, else previous year; return `YYYY-YYYY+1`.
+- Student default account password = phone number.
+- Empty class sync: class with no `SINH_VIEN` -> `ma_co_van=NULL`, `trang_thai_lop=LOP_TRONG`.
+- A closed/advised class is `ma_co_van` truthy and `trang_thai_lop` in `Đã đóng`, `Đã có cố vấn`, legacy `Đã có CVHT`.
+- Advisor capacity: max 2 classes in `LOP` excluding current class when approving final assignment/replacement.
+
+Student behavior:
+
+- `listStudents`: join student account and class.
+- `createStudent`: require ma_sinh_vien, ho_va_ten, email, so_dien_thoai, ma_lop; create `TAI_KHOAN` role `sinhvien`; insert `SINH_VIEN`; increment `LOP.so_luong_sv`; if class was `Lớp trống` set to `Chưa có cố vấn`.
+- `importStudents`: parse CSV rows and call `createStudent`.
+- `updateStudent`: update profile, email, optional ma_lop; if class changed, decrement old class, increment new class, sync empty classes.
+- `deleteStudent`: delete `SINH_VIEN`, delete `TAI_KHOAN`, decrement class, sync empty.
+- `updateStudentAccountStatus`: toggle `TAI_KHOAN.is_active`.
+
+Class behavior:
+
+- `listClasses`: join KHOA, active truong khoa name, active advisor name only if advisor account active, and actual student count.
+- `listClassGroups`: per khoa count lop, active truong khoa, group_concat class statuses; returns id, so_lop number, fallback status.
+- `createClass`: require ma_lop, ma_khoa, ten_lop, chuyen_nganh; default nam_hoc current; initial `so_luong_sv` payload or 0; `ma_co_van=NULL`; status `Lớp trống`.
+- `importClasses`: CSV ma_lop, ten_lop, ma_khoa, chuyen_nganh; nam_hoc current.
+- `updateClass`: only if no students; update nullable fields.
+- `deleteClass`: only if no students.
+- `deleteStudentsByClass`: delete all students and accounts in class, set count 0, sync empty.
+
+Assignment behavior:
+
+- `listAssignments`: all `PHAN_CONG` not referenced by `YEU_CAU_THAY_THE`, joined class/khoa/advisor/truong khoa.
+- `createAssignmentRequest`: single class must have students; create `PHAN_CONG` status `Chờ phân công`, update `LOP` status same and advisor null.
+- `sendAssignmentToFaculty`: mostly validates status/students; leaves status as `Chờ phân công`.
+- `sendClassRequestsToFaculties`: for every non-empty class with `ma_co_van IS NULL` and class status in `Chưa có cố vấn` or `Chờ phân công`, create new `PHAN_CONG` only if no active request in statuses `Chờ phân công`, `Đã phân công`, `Chờ giám đốc duyệt`; update class status; return sent count; if none -> badRequest.
+- `resetClassAdvisors`: only when every non-empty class is closed/advised and no active/rejected assignments; deletes active/rejected assignment rows for non-empty classes, sets non-empty classes `ma_co_van=NULL`, status `Chờ phân công`.
+- `approveAssignment`: final CTSV/Giam doc approval; valid transition to `Đã đóng`; require selected active advisor, capacity <2; update LOP advisor/status, update PHAN_CONG status/year/date; notify `lop`, `khoa`, `covan`.
+- `rejectAssignment`: only from `Chờ giám đốc duyệt`; set assignment back `Chờ phân công`, null advisor, update class status; notify khoa.
+- Bulk approve/reject: operate on all director-waiting assignments excluding replacement assignments; bulk approve combines recipients into one notification.
+
+Replacement behavior:
+
+- `listReplacementRequests`: all requests joined PHAN_CONG, LOP, KHOA, old advisor, new advisor if active, truong khoa.
+- `approveReplacement`: final approval; valid transition to `Giám đốc đã duyệt`; require new active advisor and capacity; update LOP to new advisor and `Đã đóng`, update PHAN_CONG `Đã đóng`, update request `Đã đóng`; notify lop, khoa, old advisor, new advisor.
+- `rejectReplacement`: transition to `Bị từ chối`; notify khoa and old advisor.
+- Bulk approve/reject: statuses `Khoa đã duyệt` or `Giám đốc đang duyệt`.
+
+Notification creation:
+
+- CTSV notification uses actual `user.ma_nhan_vien`.
+- Deduplicate recipients by `loai_nguoi_nhan:ma_doi_tuong`.
+
+## 11. Node Khoa module
+
+All routes require role `khoa`.
+
+Routes:
+
+- `GET /api/khoa/assignments`
+- `GET /api/khoa/advisors`
+- `PATCH /api/khoa/advisors/:id/priority`
+- `POST /api/khoa/assignments/auto-assign`
+- `POST /api/khoa/assignments/submit-all`
+- `POST /api/khoa/assignments/:id/assign`
+- `POST /api/khoa/assignments/:id/submit`
+- `GET /api/khoa/replacement-requests`
+- `POST /api/khoa/replacement-requests/:id/approve-step-1`
+- `POST /api/khoa/replacement-requests/:id/reject-step-1`
+
+Rules:
+
+- Data scope always by `user.ma_khoa`.
+- Advisor assignable if:
+  - CVHT exists.
+  - `advisor.ma_khoa === user.ma_khoa`.
+  - has linked account and account active.
+  - `uu_tien !== 3`.
+  - total assigned/pending classes < 2. Pending counts `PHAN_CONG` in `Đã phân công`, `Chờ giám đốc duyệt`, excluding replacement requests already refused.
+- `listAssignments`: only PHAN_CONG of faculty and not replacement.
+- `listAdvisors`: active CVHT accounts in faculty, with count of classes in LOP.
+- `updateAdvisorPriority`: value must be 1, 2, 3.
+- `autoAssignAdvisors`:
+  - takes faculty assignments status `Chờ phân công`.
+  - active advisors in faculty, `uu_tien <> 3`.
+  - sort candidate by: lower `uu_tien`, fewer assigned/pending classes, major match, advisor name.
+  - Updates assignment `ma_co_van`, status `Đã phân công`, `ten_truong_khoa=user.ho_va_ten`.
+  - Does not submit to CTSV automatically.
+- `assignAdvisor`: manual selection for status `Chờ phân công` or `Đã phân công`; validates advisor; updates status `Đã phân công`.
+- `submitAssignment`: one assignment must have advisor, valid transition to `Chờ giám đốc duyệt`, set `ten_truong_khoa`, create system notification to CTSV.
+- `submitAllAssignments`: all faculty assignments in `Chờ phân công` or `Đã phân công`; error if any missing advisor; update `Đã phân công` rows to `Chờ giám đốc duyệt`; notify CTSV.
+- System notification from Khoa uses first `NHAN_VIEN_CTSV` as sender; if none, returns null.
+- Replacement step 1:
+  - `approveReplacementStep1`: request belongs to faculty, new advisor required and different from old, valid transition to `Khoa đã duyệt`, advisor assignable, update PHAN_CONG new advisor/status `Đã phân công`, update request `Khoa đã duyệt`, notify CTSV and old advisor.
+  - `rejectReplacementStep1`: only status `Chờ duyệt` or `Khoa đang duyệt`; set `Bị từ chối`; notify old advisor only.
+
+## 12. Node CVHT module
+
+All routes require role `covan`.
+
+Routes:
+
+- `GET /api/covan/me`
+- `GET /api/covan/classes`
+- `GET /api/covan/classes/:id/students`
+- `GET /api/covan/replacement-requests`
+- `POST /api/covan/replacement-requests`
+
+Behavior:
+
+- `advisorInfo`: load CVHT profile, account email, khoa; only active account.
+- `myClasses`: classes where `LOP.ma_co_van=user.ma_co_van`, join khoa.
+- `classStudents`: verifies class belongs to advisor; returns active students only.
+- `createReplacementRequest`:
+  - require `ma_lop` and `ly_do`.
+  - class must be currently advised by this CVHT.
+  - block duplicate active replacement request for same class in statuses `Chờ duyệt`, `Khoa đang duyệt`, `Khoa đã duyệt`, `Giám đốc đang duyệt`.
+  - create new `PHAN_CONG` for replacement flow with no advisor, current academic year, status `Chờ phân công`.
+  - create `YEU_CAU_THAY_THE` with old advisor `user.ma_co_van`, status `Chờ duyệt`, date current.
+  - notify khoa.
+- `myReplacementRequests`: returns all requests by this old advisor; hides new advisor if request refused or new advisor account inactive.
+
+## 13. Node Sinh Vien module
+
+All routes require role `sinhvien`.
+
+Routes:
+
+- `GET /api/sinhvien/me`
+- `GET /api/sinhvien/advisor`
+
+Behavior:
+
+- `myProfile`: current student profile, account email, class, faculty.
+- `myAdvisor`: current student's class, year, major, faculty, assigned CVHT info if available and active.
+
+## 14. Node Notifications module
+
+Routes require login and changed password; create route additionally requires role CTSV in service.
+
+Routes:
+
+- `GET /api/notifications`
+- `POST /api/notifications`
+
+Recipient scope:
+
+- Admin: sees all notifications (`1=1`).
+- CTSV: only `loai_nguoi_nhan='ctsv' AND ma_doi_tuong='ALL'`.
+- Khoa: only `loai_nguoi_nhan='khoa' AND ma_doi_tuong=user.ma_khoa`.
+- CVHT: only `loai_nguoi_nhan='covan' AND ma_doi_tuong=user.ma_co_van`.
+- Sinh vien: only `loai_nguoi_nhan='lop' AND ma_doi_tuong=user.ma_lop`.
+
+Manual create:
+
+- Only CTSV can create.
+- Payload `{ tieu_de, noi_dung, recipients: [{ loai_nguoi_nhan, ma_doi_tuong }] }`.
+- Inserts `THONG_BAO` and one `THONG_BAO_NGUOI_NHAN` per recipient.
+
+## 15. Spring Boot Auth service
+
+Package root: `com.example.backendspringboot`.
+
+### Config
+
+`application.yaml`:
+
+- Imports optional `../.env`.
+- Datasource MySQL URL with timezone Asia/Ho_Chi_Minh.
+- JPA `ddl-auto: none`, physical naming standard.
+- Redis host default currently literal `localhost` unless overridden by env in docker-compose.
+- Mail host/port/user/password from SMTP env.
+- Google OAuth client id/secret/redirect.
+- `server.port=8080`.
+- JWT:
+  - `jwt.signerKey`
+  - `jwt.refreshSignerKey`
+  - `jwt.accessTokenExpiration` seconds default 28800
+  - `jwt.refreshTokenExpiration` seconds default 604800
+- App:
+  - `frontend-url`
+  - `cookie.secure`
+  - `smtp.from`
+  - `otp.expires-in-seconds`
+  - `password-reset.expires-in-seconds`
+
+### Security
+
+`SecurityConfig`:
+
+- BCryptPasswordEncoder bean.
+- CSRF disabled.
+- CORS enabled:
+  - allowed origins hardcoded `http://localhost:5173`
+  - methods GET, POST, PUT, PATCH, DELETE, OPTIONS
+  - headers `*`
+  - credentials true
+- All requests permitAll. Auth is enforced inside services by reading cookies/tokens, not by Spring filter chain.
+
+### Entities and repositories
+
+- `Account` maps `TAI_KHOAN`; fields accountId, username, password, email, accountType, isPasswordChanged, isActive. Implements `AccountInfo`.
+- `RefreshToken` maps `REFRESH_TOKENS`; id integer identity, accountId, token, expiresAt.
+- `LoginAttempt` maps `DANG_NHAP_THAT_BAI`; composite key username + LocalDate date, attemptCount.
+- `AccountRepository`: findByUsername, findByEmail.
+- `RefreshTokenRepository`: findByTokenAndExpiresAtAfter, deleteByToken.
+- `LoginAttemptRepository`: findByUsernameAndDate, deleteByUsernameAndDate.
+- `AccountType` enum contains db role values and profile SQL for admin/ctsv/khoa/covan/sinhvien.
+- `AccountMapper.toUserMap(Account)`: load role profile by account type using JdbcTemplate; returns same field shape as Node auth user.
+
+### Auth controller
+
+Base path `/api/auth`.
+
+- `POST /login`: body `ten_tai_khoan`, `mat_khau`; sets accessToken/refreshToken httpOnly cookies; returns user map directly.
+- `POST /logout`: deletes refresh token, clears cookies; returns `{message}`.
+- `POST /refresh-token`: reads refresh cookie, rotates tokens, returns user.
+- `GET /me`: reads access cookie, returns user.
+- `POST /change-password`: body `mat_khau_cu`, `mat_khau_moi`, `nhap_lai_mat_khau_moi`; returns `{message}`.
+- `POST /forgot-password`: body `email`; returns OTP token data.
+- `POST /verify-reset-otp`: body `otp_token`, `otp`; returns reset token.
+- `POST /reset-password`: body `reset_token`, `mat_khau_moi`, `nhap_lai_mat_khau_moi`.
+- `GET /google/login`: returns `{url}`.
+- `GET /google/callback?code=...`: exchanges code, sets cookies, redirects to `${FRONTEND_URL}/login?google=success`.
+
+Cookie utility:
+
+- Adds cookies with HttpOnly, SameSite Strict, path `/`, maxAge duration, Secure from `app.cookie.secure`.
+- Access cookie duration 8 hours.
+- Refresh cookie duration 7 days.
+
+### AuthenticationService
+
+- Login:
+  - max 5 failed attempts per username per date.
+  - find account by username.
+  - BCrypt password match.
+  - check active.
+  - clear attempts and build session.
+- Build session:
+  - user map via mapper.
+  - access token via `JwtService.generateAccessToken(user, accessTokenExpiration)`.
+  - refresh token via `generateRefreshToken(accountId, refreshTokenExpiration)`.
+  - save refresh token expires `now + refreshTokenExpiration`.
+- Refresh:
+  - token must exist in DB and not expired.
+  - verify refresh JWT.
+  - load active account.
+  - delete old token and build new session.
+- Me:
+  - verify access JWT.
+  - load active account.
+  - return user map.
+- Change password:
+  - validate new/confirm match and size via validation annotations.
+  - call `me(accessToken)` to get account id.
+  - validate old password.
+  - encode and set `isPasswordChanged=true`.
+
+### JwtService
+
+- Implements HS256 manually with Base64 URL no padding, HmacSHA256, constant-time signature compare.
+- Access token claims: full user map + `iat`, `exp`, `jti`, `sub = ma_tai_khoan`.
+- Refresh token claims: `ma_tai_khoan`, `type='refresh'`, `iat`, `exp`.
+- `verifyAccessToken` and `verifyRefreshToken`; refresh requires type refresh.
+- `parseToken` returns `JwtInfo` for CustomJwtDecoder.
+
+### OtpService
+
+- Mirrors Node OTP logic.
+- `forgotPassword`:
+  - requires `spring.mail.username`.
+  - find active account by email.
+  - generate 6-digit OTP with SecureRandom.
+  - OTP token secret = signerKey + ":" + current bcrypt password + ":otp".
+  - OTP hash sha256(accountId + ":" + otp + ":" + signerKey).
+  - send HTML email through `SendMailService`.
+  - return `otp_token`, `expires_in` as seconds string like `300s`.
+- `verifyResetOtp`:
+  - decode JWT payload without verify.
+  - verify signature+expiry with otp secret.
+  - compare otp hash.
+  - issue reset token signed with reset secret signerKey + ":" + current password.
+- `resetPassword`:
+  - check new/confirm match.
+  - decode and verify reset token.
+  - set password encoded and `isPasswordChanged=true`.
+
+### Google OAuth
+
+- `buildGoogleLoginUrl`: Google auth endpoint with client_id, redirect_uri, response_type code, scope `openid email profile`, access_type offline, prompt select_account.
+- Callback:
+  - POST code to `https://oauth2.googleapis.com/token`.
+  - GET userinfo from `https://www.googleapis.com/oauth2/v3/userinfo`.
+  - require verified email.
+  - find existing account by email, active.
+  - issue same app JWT/cookies.
+  - Does not create accounts.
+
+### Exceptions
+
+Response shape from Spring errors is `ApiResponse`:
+
+```json
+{ "code": 4005, "message": "Sai ten tai khoan hoac mat khau", "result": null }
+```
+
+Important `ErrorCode` values:
+
+- 1001 UNAUTHENTICATED -> 401
+- 1002 INVALID_TOKEN -> 401
+- 4003 ACCOUNT_NOT_EXISTED -> 400
+- 4004 ACCOUNT_BLOCKED -> 401
+- 4005 INVALID_CREDENTIALS -> 401
+- 4006 ROLE_PROFILE_NOT_FOUND -> 403
+- 4007 TOO_MANY_LOGIN_ATTEMPTS -> 429
+- 4008 BAD_REQUEST -> 400
+- 4009 EMAIL_NOT_FOUND -> 400
+- 4010 SMTP_NOT_CONFIGURED -> 400
+- 4011 INVALID_OTP -> 400
+- 4012 OTP_EXPIRED -> 400
+- 4013 OTP_WRONG -> 400
+- 4014 INVALID_RESET_TOKEN -> 400
+- 4015 RESET_TOKEN_EXPIRED -> 400
+- 4016 PASSWORD_MISMATCH -> 400
+- 4017 PASSWORD_TOO_SHORT -> 400
+- 4018 OLD_PASSWORD_WRONG -> 400
+- 4019 MAIL_SEND_FAILED -> 500
+
+## 16. Frontend architecture
+
+### Entry and routing
+
+`main.jsx` renders:
+
+- `BrowserRouter`
+- `AuthProvider`
+- `App`
+- CSS `src/styles/main.css`
+
+`App.jsx` routes:
+
+- `/login` -> `LoginPage`
+- `/forgot-password` -> `ForgotPasswordPage`
+- `/change-password` -> `ChangePasswordPage`
+- `/` -> `Home` role router:
+  - no user -> `/login`
+  - user but `da_doi_mk=false` -> `/change-password`
+  - admin -> `AdminDashboard`
+  - ctsv -> `CtsvDashboard`
+  - khoa -> `KhoaDashboard`
+  - covan -> `CovanDashboard`
+  - sinhvien -> `SinhVienDashboard`
+- `/notifications` -> `ProtectedRoute` -> `NotificationsPage`
+
+### Axios client
+
+`api = axios.create({ baseURL: VITE_API_URL || http://localhost:5000/api, withCredentials:true })`.
+
+Request interceptor:
+
+- If `config.url` starts with `/auth` or `auth`, set `baseURL = VITE_SPRING_BOOT_API_URL || http://localhost:8080/api`.
+
+Response interceptor:
+
+- On 401, if not `/auth/refresh-token` or `/auth/login`, queue concurrent failed requests while refreshing.
+- Calls `POST /auth/refresh-token`.
+- Replays original request on success.
+- On refresh failure dispatches `window` event `auth:unauthorized`.
+
+### AuthContext
+
+- State initialized from `localStorage.user`.
+- `loading=true` until `refreshMe` attempt completes.
+- `login(credentials)`: POST `/auth/login`, store user in localStorage.
+- `loginWithGoogle()`: GET `/auth/google/login`, redirect to URL in `data.url` or `data.result`.
+- `refreshMe()`: GET `/auth/me`, store user.
+- `changePassword(payload)`: POST `/auth/change-password`, then refreshMe.
+- `logout()`: POST `/auth/logout` best effort, clear local user.
+- On mount refreshMe; on `auth:unauthorized`, clear user.
+
+### ProtectedRoute
+
+- While loading: show page status.
+- No user -> `/login`.
+- Password not changed -> `/change-password`.
+- If `roles` prop provided and role not included -> `/`.
+
+### AppLayout
+
+Common shell with fixed left sidebar 260px, content area, brand link, role-specific nav, bottom user menu.
+
+Role labels:
+
+- admin: Quan tri vien
+- ctsv: Phong CTSV
+- khoa: Truong Khoa
+- covan: Co van hoc tap
+- sinhvien: Sinh vien
+
+Default nav:
+
+- khoa: Notifications, Assignment (`/?view=assignment`), Employees (`/?view=employees`), History (`/?view=history`)
+- ctsv: Notifications, Create (`/?view=create`), Students (`/?view=students`), Assignments (`/?view=assignments`), History (`/?view=history`)
+- covan: Overview `/`, Notifications
+- sinhvien: Overview `/`, Notifications
+
+Unread indicators:
+
+- Uses localStorage keys:
+  - `read_notification_ids:${ma_tai_khoan}`
+  - `seen_khoa_assignments`
+  - `seen_khoa_replacements`
+  - `seen_ctsv_assignments`
+  - `seen_ctsv_replacements`
+  - `seen_khoa_assignment_details`
+- Polls every 15 seconds.
+- Khoa unread assignment if assignments waiting `Chờ phân công` or replacement requests in `Chờ duyệt`/`Khoa đang duyệt` not seen.
+- CTSV unread assignment if assignment status `Chờ giám đốc duyệt` or replacement in `Khoa đã duyệt`/`Giám đốc đang duyệt`.
+
+### DataTable
+
+Props: `columns`, `rows`, `actions`, `actionLabel`, `filterable`, `pageSize`.
+
+- Column fields: `key`, `label`, optional `render(row)`, `renderText(row)`, `width`, `minWidth`, `align`, `type`.
+- Built-in default widths and number-center alignment.
+- Filtering per column if `filterable`.
+- Pagination if `pageSize`.
+- Row key from many ids: `id`, `ma_tai_khoan`, `ma_sinh_vien`, `ma_co_van`, `ma_lop`, `ma_phan_cong`, `ma_yeu_cau`, `ma_thong_bao`, `ma_don_vi`, `ma`.
+
+### Shared components
+
+- `Toast`: fixed top notification, auto close after 3s, type success/error, close button `x`.
+- `ExpandableText`: truncates single line, click to expand/pre-wrap, collapse link.
+
+## 17. Frontend pages
+
+### LoginPage
+
+- Uses form `{ ten_tai_khoan, mat_khau }`.
+- On submit calls `login`, then routes to `/` if `da_doi_mk`, else `/change-password`.
+- Google login button calls `loginWithGoogle`.
+- If URL has `?google=success` but auth refresh yields no user, show "Dang nhap Google that bai..." from sessionStorage key `adivisor_login_error`.
+- Link to `/forgot-password`.
+
+### ChangePasswordPage
+
+- Requires user; else redirect `/login`.
+- Form: `mat_khau_cu`, `mat_khau_moi`, `nhap_lai_mat_khau_moi`.
+- Calls `changePassword`; then navigate `/`.
+- Secondary button logout.
+
+### ForgotPasswordPage
+
+Three-step state:
+
+- `email`: POST `/auth/forgot-password`, store `otp_token`, step `otp`.
+- `otp`: POST `/auth/verify-reset-otp` with `otp_token`, `otp`, store `reset_token`, step `reset`.
+- `reset`: POST `/auth/reset-password` with `reset_token`, password fields, then after 900ms navigate `/login`.
+
+Redirects away if already logged in.
+
+### AdminDashboard
+
+Nav sections:
+
+- `create`: three CSV import panels.
+- `employees`: two tables for account groups and advisor groups.
+
+CSV panels:
+
+- Faculty heads endpoint `/admin/faculty-heads/import`.
+- CTSV endpoint `/admin/ctsv/import`.
+- CVHT full endpoint `/admin/advisors/full/import`.
+
+State:
+
+- `employeeGroups`, selected account group modal, `employeeAccounts`.
+- selected advisor group modal, `advisorRows`.
+- editing account/advisor.
+
+Employee group modal:
+
+- Columns: ma, ho_va_ten, email, ten_tai_khoan, vai_tro, status pill.
+- Actions:
+  - For non-covan: edit account, delete account.
+  - For all with account: lock/unlock.
+
+Advisor modal:
+
+- Columns: ma_co_van, ho_va_ten, email, so_dien_thoai, chuyen_nganh, uu_tien.
+- Actions: edit advisor profile, delete advisor.
+- Advisor edit does not edit `uu_tien`; input disabled.
+
+### CtsvDashboard
+
+Active section from query `view`, default `create`.
+
+Sections:
+
+- `create`: import classes and students.
+- `students`: list classes, open student info modal or account modal, edit/delete class when no students.
+- `assignments`: assignment management plus replacement review.
+- `history`: assignment and replacement history.
+
+Loads in parallel:
+
+- `/ctsv/class-groups`
+- `/ctsv/classes`
+- `/ctsv/students`
+- `/ctsv/assignments`
+- `/ctsv/replacement-requests`
+
+Important constants in frontend mirror backend statuses:
+
+- `NO_ADVISOR`, `EMPTY_CLASS`, `CLOSED`, `HAS_ADVISOR`, legacy `Đã có CVHT`, `WAITING`, `ASSIGNED`, `DIRECTOR_WAITING`, `REJECTED`.
+- Reviewable replacement statuses: `Khoa đã duyệt`, `Giám đốc đang duyệt`.
+
+Create section:
+
+- Class CSV endpoint `/ctsv/classes/import`, requires ma_lop, ten_lop, ma_khoa, chuyen_nganh.
+- Student CSV endpoint `/ctsv/students/import`, requires ma_sinh_vien, ho_va_ten, email, so_dien_thoai, ma_lop.
+
+Students section:
+
+- Main table classRows with `si_so` from `so_sinh_vien_thuc_te ?? so_luong_sv`.
+- Buttons:
+  - `Thông tin`: modal listing students of class, edit/delete student, delete all students.
+  - `Tài khoản`: modal listing student accounts, lock/unlock account.
+  - edit/delete class icon disabled if class has students.
+- Student edit can change ho_va_ten, email, so_dien_thoai, ma_lop.
+
+Assignments section:
+
+- Builds faculty-level `assignmentGroups` combining classGroups, classes, assignments.
+- Group status logic:
+  - no classes -> `Chưa có lớp`
+  - classes but no non-empty -> `Không có sinh viên`
+  - all non-empty closed/advised -> `Đã đóng`
+  - director waiting and no waiting -> `Chờ giám đốc duyệt`
+  - waiting/assigned/rejected -> `Chờ phân công`
+  - no advisor count -> `Chưa có cố vấn`
+- Top buttons:
+  - `Làm mới`: POST `/ctsv/classes/reset-advisors`, enabled only all non-empty classes closed and assignments all closed/no-student.
+  - `Gửi yêu cầu`: POST `/ctsv/classes/send-to-faculties`.
+  - `Duyệt tất cả`: POST `/ctsv/assignments/approve-all`, enabled when any director-waiting.
+  - `Từ chối tất cả`: POST `/ctsv/assignments/reject-all`.
+- Detail modal per khoa:
+  - Rows include every class in khoa; empty class uses `ma_phan_cong='-'`, status `Lớp trống`.
+  - Single approve/reject buttons only when status `Chờ giám đốc duyệt`.
+- Export assignments:
+  - CSV or XLSX using dynamic import `xlsx`.
+  - Exports director-waiting rows, or closed results if all non-empty classes closed.
+  - Filename `phan-cong-cho-giam-doc-duyet` or `ket-qua-phan-cong`.
+
+Replacement panel:
+
+- Shows pending review rows filtered status `Khoa đã duyệt` or `Giám đốc đang duyệt`.
+- Buttons approve/reject all to CTSV replacement bulk endpoints.
+- Single buttons:
+  - approve `/ctsv/replacement-requests/:id/approve`
+  - reject `/ctsv/replacement-requests/:id/reject`
+- Export pending replacements CSV/XLSX filename `danh-sach-yeu-cau-thay-the`.
+
+History section:
+
+- Assignment history = assignments status `Đã đóng`, sorted by year desc, faculty, class rank/name.
+- Replacement history = statuses `Giám đốc đã duyệt`, `Đã đóng`, `Bị từ chối` but rejected only if `ma_co_van_moi` exists.
+
+### KhoaDashboard
+
+Active section from query:
+
+- default `assignment`
+- `employees`
+- `history`
+
+Loads:
+
+- `/khoa/assignments`
+- `/khoa/advisors`
+- `/khoa/replacement-requests`
+
+Assignment page:
+
+- Summary table one row "Có yêu cầu phân công" or "Chưa có yêu cầu".
+- Opens modal of received assignments statuses `Chờ phân công`, `Đã phân công`, `Chờ giám đốc duyệt`.
+- Modal actions:
+  - `Tự động`: POST `/khoa/assignments/auto-assign`, enabled if any waiting.
+  - `Gửi`: POST `/khoa/assignments/submit-all`, enabled if any assigned.
+  - manual CVHT field is input with `datalist` of advisor names; on blur posts `/khoa/assignments/:id/assign` with selected advisor id.
+- Tracks seen detail ids in localStorage `seen_khoa_assignment_details`.
+
+Replacement page block inside assignment:
+
+- Pending replacement statuses: `Chờ duyệt`, `Khoa đang duyệt`.
+- For each row choose new CVHT from active advisors select.
+- Approve POST `/khoa/replacement-requests/:id/approve-step-1` body `{ ma_co_van_moi }`.
+- Reject POST `/khoa/replacement-requests/:id/reject-step-1`.
+- Label function displays `Khoa đã duyệt`/`Giám đốc đang duyệt` as `Giám đốc đang duyệt`.
+
+Employees:
+
+- Lists advisors in khoa.
+- Columns ma_co_van, ho_va_ten, chuyen_nganh, uu_tien select 1/2/3, so_lop_dang_phu_trach.
+- Changing priority PATCH `/khoa/advisors/:id/priority`.
+
+History:
+
+- Assignment history groups by nam_hoc + ma_khoa + ten_truong_khoa for assignments status `Đã đóng`.
+- Modal shows class list for selected year/head.
+- Replacement history statuses: `Khoa đã duyệt`, `Giám đốc đang duyệt`, `Giám đốc đã duyệt`, `Đã đóng`, `Bị từ chối`; sorted by ngay_yeu_cau desc, year desc, ma_yeu_cau.
+
+### CovanDashboard
+
+Loads:
+
+- `/covan/classes`
+- `/covan/replacement-requests`
+
+Sections:
+
+- `Lớp đang phụ trách`: table pageSize 1. Each row can:
+  - open reason form (`Nhập lý do`) with input.
+  - submit replacement request POST `/covan/replacement-requests` body `{ ma_lop, ly_do }`.
+  - load students via GET `/covan/classes/:ma_lop/students`.
+- `Sinh viên lớp đang chọn`: shows loaded students.
+- `Yêu cầu đã gửi`: all replacement requests of advisor; uses ExpandableText for reason.
+
+### SinhVienDashboard
+
+- Loads `/sinhvien/advisor`.
+- Shows class, faculty, major, CVHT name or "Chưa được phân công", advisor email and phone.
+
+### NotificationsPage
+
+- Loads `/notifications`.
+- Table columns `ngay_gui`, `tieu_de`, `noi_dung`, pageSize 10.
+
+## 18. CSS/design
+
+`Frontend/src/styles/main.css` defines:
+
+- Global Inter/system font, background `#f4f7fb`, primary blue `#2563eb`, 6-8px radii.
+- Auth page full viewport fixed, background image `/bg-login.jpg` with dark linear overlay and blur.
+- Auth panel max 440px, white translucent, box-shadow, uppercase blue H1.
+- Layout: `.app-shell` grid 260px sidebar + content; AppLayout also injects inline CSS making sidebar fixed and content margin-left 260px.
+- Sidebar white, brand blue uppercase, nav items transparent with bottom border, active/hover light blue.
+- Content background in AppLayout uses `/ptit-logo.png` centered watermark over light background.
+- Panels: white cards with border `#dbe3ef`, radius 8, padding 18.
+- Tables fixed layout, min-width 720px, overflow-x auto, uppercase small headers, filter row inputs.
+- Buttons primary blue, secondary gray, disabled opacity.
+- Modals: fixed backdrop rgba slate, centered panel max 1040px, max-height 82vh, overflow auto.
+- Toast fixed top center, success blue, error red.
+- Responsive:
+  - max 900px: single column shell, sidebar static, grids collapse.
+  - max 768px: auth page scrollable, panel smaller.
+- Additional CTSV-specific CSS exists but much of current AppLayout uses simpler sidebar classes and inline overrides.
+
+## 19. End-to-end workflows
+
+### First login
+
+1. User logs in by username/password or Google.
+2. Auth service sets `accessToken` and `refreshToken` httpOnly cookies.
+3. User map stored in localStorage.
+4. If `da_doi_mk=false`, frontend forces `/change-password`.
+5. After password change, backend sets `da_doi_mk=true`, frontend refreshes `/auth/me`, then routes to dashboard.
+
+### Assignment workflow
+
+1. CTSV imports/creates classes and students.
+2. Empty class remains `Lớp trống`; when students added becomes `Chưa có cố vấn`.
+3. CTSV clicks `Gửi yêu cầu`; backend creates PHAN_CONG for eligible non-empty classes without active request.
+4. Khoa sees request, can auto-assign or manually choose CVHT.
+5. Khoa submits assignments; status becomes `Chờ giám đốc duyệt`, notification sent to CTSV.
+6. CTSV approves:
+   - capacity checked max 2 classes/CVHT.
+   - LOP gets `ma_co_van`.
+   - PHAN_CONG status `Đã đóng`.
+   - notifications to class, khoa, CVHT.
+7. CTSV rejects:
+   - assignment returns `Chờ phân công`.
+   - advisor cleared.
+   - notification to khoa.
+
+### Replacement workflow
+
+1. CVHT chooses current class and reason, submits replacement request.
+2. Backend creates a new PHAN_CONG with no advisor and a YEU_CAU_THAY_THE status `Chờ duyệt`.
+3. Khoa sees request, selects new CVHT, approves step 1:
+   - PHAN_CONG gets new advisor/status `Đã phân công`.
+   - request status `Khoa đã duyệt`.
+   - notification to CTSV and old CVHT.
+4. CTSV approves final:
+   - check new advisor active and capacity.
+   - LOP advisor replaced.
+   - PHAN_CONG and request closed.
+   - notifications to class, khoa, old CVHT, new CVHT.
+5. If Khoa rejects, request ends `Bị từ chối` and only old CVHT notified.
+6. If CTSV rejects, request `Bị từ chối`, khoa and old CVHT notified.
+
+## 20. Rebuild checklist
+
+To recreate the project:
+
+1. Create MySQL schema exactly with uppercase table names and same columns/FKs/checks.
+2. Seed four faculties and sample accounts with bcrypt hashes.
+3. Implement Node Express app with middleware, modules, utilities, and routes above.
+4. Implement state constants and transition checks exactly. Do not invent alternate status strings.
+5. Implement Spring Boot auth using same DB tables and same user response shape.
+6. Implement frontend route guard and axios baseURL split so auth calls go Spring Boot and business calls go Node.
+7. Implement dashboards per role with same tabs/query views, modals, buttons, filters, pagination, export behavior and localStorage unread keys.
+8. Preserve cookie names `accessToken` and `refreshToken`.
+9. Preserve user field names:
+   - Common: `ma_tai_khoan`, `ten_tai_khoan`, `email`, `loai_tai_khoan`, `da_doi_mk`, `is_active`, `ho_va_ten`.
+   - Admin: `ma_admin`.
+   - CTSV/Khoa: `ma_nhan_vien`; Khoa also `ma_khoa`.
+   - CVHT: `ma_co_van`, `ma_khoa`.
+   - Sinh vien: `ma_sinh_vien`, `ma_lop`.
+10. Preserve CSV accepted header aliases where implemented in services.
+11. Preserve max 5 failed logins per username per day.
+12. Preserve max 2 classes per CVHT and skip `uu_tien=3` in Khoa assignment.
+13. Preserve notification recipient scoping.
+14. Preserve frontend assets `public/bg-login.jpg` and `public/ptit-logo.png`.
+
+## 21. Suggested verification
+
+Node syntax checks:
+
+```bash
+node --check Backend/src/modules/auth/auth.service.js
+node --check Backend/src/modules/admin/admin.service.js
+node --check Backend/src/modules/ctsv/ctsv.service.js
+node --check Backend/src/modules/khoa/khoa.service.js
+node --check Backend/src/modules/covan/covan.service.js
+node --check Backend/src/modules/sinhvien/sinhvien.service.js
+node --check Backend/src/modules/notifications/notifications.service.js
+```
+
+Frontend build:
+
+```bash
+cd Frontend
+npm run build
+```
+
+Spring Boot:
+
+```bash
+cd BackendSpringBoot
+.\mvnw.cmd test
+```
+
+Manual smoke test:
+
+1. `docker compose up -d --build`.
+2. Login admin/admin, change password, import employees/advisors.
+3. Login CTSV, import classes/students, send assignment requests.
+4. Login Khoa, auto assign/manual assign, submit.
+5. Login CTSV, approve/reject.
+6. Login CVHT, view classes/students, send replacement request.
+7. Login Khoa, approve replacement step 1 with new CVHT.
+8. Login CTSV, approve final replacement.
+9. Login Sinh Vien, verify advisor info.
+10. Check notifications for CTSV/Khoa/CVHT/Sinh vien scopes.
+11. Export CSV/XLSX from CTSV.
+
+## 22. Known caveats to preserve or intentionally fix
+
+- Spring Security currently permits all requests; auth logic is service-level. If changing this, update frontend and exception handling carefully.
+- Spring `CustomJwtAuthenticationConverter.getStatus()` compares status to `"BLOCKED"` but `Account.getStatus()` returns `"true"`/`"false"`; this converter is effectively unused because all requests are permitAll.
+- Spring CORS origin is hardcoded to `http://localhost:5173`, while Node uses `FRONTEND_URL`.
+- Node auth route cookie access maxAge is hardcoded 15 minutes even env `JWT_EXPIRES_IN` may be `8h`.
+- Frontend AppLayout injects substantial inline CSS overriding `main.css`; reproduce it or move equivalent CSS to stylesheet.
+- The repo contains real-looking SMTP values in local `.env`; do not propagate them.

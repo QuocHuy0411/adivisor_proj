@@ -7,6 +7,14 @@ import { assertTransition, LOP, PHAN_CONG, YEU_CAU_THAY_THE } from '../../utils/
 
 // Tao tai khoan sinh vien tu ma sinh vien va mat khau mac dinh theo so dien thoai.
 async function createStudentAccount(connection, student) {
+  const [existingUsernames] = await connection.execute('SELECT ma_tai_khoan FROM TAI_KHOAN WHERE ten_tai_khoan = ?', [student.ma_sinh_vien]);
+  if (existingUsernames[0]) throw badRequest(`Tài khoản sinh viên ${student.ma_sinh_vien} đã tồn tại`);
+
+  if (student.email) {
+    const [existingEmails] = await connection.execute('SELECT ten_tai_khoan FROM TAI_KHOAN WHERE email = ?', [student.email]);
+    if (existingEmails[0]) throw badRequest(`Email ${student.email} đã tồn tại trong hệ thống`);
+  }
+
   const password = await hashPassword(defaultPasswordForRole('sinhvien', student));
   const accountId = makeId('TK');
   await connection.execute(
@@ -91,6 +99,9 @@ export async function createStudent(payload) {
   for (const field of required) if (!payload[field]) throw badRequest(`Thiếu trường ${field}`);
 
   return transaction(async (connection) => {
+    const [existingStudents] = await connection.execute('SELECT ma_sinh_vien FROM SINH_VIEN WHERE ma_sinh_vien = ?', [payload.ma_sinh_vien]);
+    if (existingStudents[0]) throw badRequest(`Sinh viên ${payload.ma_sinh_vien} đã tồn tại trong danh sách`);
+
     const accountId = await createStudentAccount(connection, payload);
     await connection.execute(
       `INSERT INTO SINH_VIEN (ma_sinh_vien, ma_tai_khoan, ma_lop, ho_va_ten, so_dien_thoai)

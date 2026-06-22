@@ -42,6 +42,7 @@ export default function AppLayout({ title, children, navItems = [], activeNav, o
   const location = useLocation();
   const navigate = useNavigate();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const currentNavItems = navItems.length ? navItems : (roleNavItems[user?.loai_tai_khoan] || []);
 
   const [unreadNotifications, setUnreadNotifications] = useState(false);
@@ -226,77 +227,25 @@ export default function AppLayout({ title, children, navItems = [], activeNav, o
 
   return (
     <div className="app-shell ctsv-layout">
-      <style>{`
-        .app-shell {
-          display: block !important;
-        }
-        .sidebar {
-          position: fixed !important;
-          top: 0 !important;
-          bottom: 0 !important;
-          left: 0 !important;
-          width: 260px !important;
-          height: 100vh !important;
-          overflow-y: auto !important;
-          z-index: 1000 !important;
-        }
-        .content {
-          margin-left: 260px !important;
-          display: block !important;
-        }
-        @media (max-width: 900px) {
-          .sidebar {
-            position: static !important;
-            width: 100% !important;
-            height: auto !important;
-            overflow-y: visible !important;
-          }
-          .content {
-            margin-left: 0 !important;
-          }
-        }
-        .ctsv-bottom-menu {
-          margin-top: auto !important;
-          position: relative !important;
-          order: 9999 !important;
-        }
-        .ctsv-account-menu {
-          top: auto !important;
-          bottom: 100% !important;
-          margin-bottom: 8px !important;
-          margin-top: 0 !important;
-          box-shadow: 0 -4px 12px rgba(15, 23, 42, 0.12) !important;
-          left: 0 !important;
-          right: 0 !important;
-          width: 100% !important;
-          position: absolute !important;
-          background: #fff !important;
-          border: 1px solid #dbe3ef !important;
-          border-radius: 6px !important;
-          display: flex !important;
-          flex-direction: column !important;
-          z-index: 1010 !important;
-        }
-        .ctsv-layout .content {
-          position: relative !important;
-          background: linear-gradient(rgba(244, 247, 251, 0.94), rgba(244, 247, 251, 0.94)), url('/ptit-logo.png') no-repeat center center !important;
-          background-size: 320px !important;
-          background-attachment: fixed !important;
-        }
-        .sidebar-red-dot {
-          width: 8px !important;
-          height: 8px !important;
-          background-color: #ef4444 !important;
-          border-radius: 50% !important;
-          flex-shrink: 0 !important;
-        }
-      `}</style>
-      <aside className="sidebar">
-        <Link className="brand" to="/">Phân công cố vấn học tập</Link>
+      {mobileMenuOpen && (
+        <div className="sidebar-backdrop" onClick={() => setMobileMenuOpen(false)} />
+      )}
+      <aside className={`sidebar ${mobileMenuOpen ? 'open' : ''}`}>
+        <div className="sidebar-header-wrapper">
+          <Link className="brand" to="/" onClick={() => setMobileMenuOpen(false)}>Phân công CVHT</Link>
+          <button className="mobile-close-btn" onClick={() => setMobileMenuOpen(false)} aria-label="Close menu">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+          </button>
+        </div>
         <nav className="sidebar-action-nav">
           {currentNavItems.map((item) => (
             item.to ? (
-              <Link className={isNavActive(item) ? 'sidebar-nav-item active' : 'sidebar-nav-item'} key={item.key} to={item.to}>
+              <Link 
+                className={isNavActive(item) ? 'sidebar-nav-item active' : 'sidebar-nav-item'} 
+                key={item.key} 
+                to={item.to}
+                onClick={() => setMobileMenuOpen(false)}
+              >
                 <span style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '100%', justifyContent: 'space-between' }}>
                   {item.label}
                   {showRedDot(item.key) && <span className="sidebar-red-dot" />}
@@ -307,7 +256,10 @@ export default function AppLayout({ title, children, navItems = [], activeNav, o
                 className={isNavActive(item) ? 'sidebar-nav-item active' : 'sidebar-nav-item'}
                 key={item.key}
                 type="button"
-                onClick={() => onNavChange?.(item.key)}
+                onClick={() => {
+                  onNavChange?.(item.key);
+                  setMobileMenuOpen(false);
+                }}
               >
                 <span style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '100%', justifyContent: 'space-between' }}>
                   {item.label}
@@ -369,7 +321,20 @@ export default function AppLayout({ title, children, navItems = [], activeNav, o
       </aside>
       <main className="content">
         <header className="content-header">
-          <h1>{title}</h1>
+          <div className="header-title-row">
+            <button 
+              className="mobile-menu-btn" 
+              onClick={() => setMobileMenuOpen(true)}
+              aria-label="Mở menu"
+            >
+              <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="3" y1="12" x2="21" y2="12"></line>
+                <line x1="3" y1="6" x2="21" y2="6"></line>
+                <line x1="3" y1="18" x2="21" y2="18"></line>
+              </svg>
+            </button>
+            <h1>{title}</h1>
+          </div>
         </header>
         {children}
       </main>

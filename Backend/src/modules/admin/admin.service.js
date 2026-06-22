@@ -115,7 +115,7 @@ export async function listEmployeeGroups() {
     ...faculties,
     {
       ma_don_vi: 'CTSV',
-      ten_don_vi: 'Cong tac sinh vien',
+      ten_don_vi: 'Công tác sinh viên',
       so_luong_nhan_vien: Number(ctsvRows[0]?.so_luong_nhan_vien || 0),
       so_luong_co_van: 0
     }
@@ -133,7 +133,7 @@ export async function listEmployeeGroupAccounts(ma_don_vi) {
               acc.email,
               acc.ten_tai_khoan,
               acc.loai_tai_khoan,
-              'Nhan vien CTSV' AS vai_tro,
+              'Nhân viên CTSV' AS vai_tro,
               acc.is_active,
               acc.ma_tai_khoan
        FROM NHAN_VIEN_CTSV nv
