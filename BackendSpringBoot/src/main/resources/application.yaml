@@ -16,8 +16,8 @@ spring:
         dialect: org.hibernate.dialect.MySQLDialect
   data:
     redis:
-      host: "localhost"
-      port: 6379
+      host: ${SPRING_DATA_REDIS_HOST:localhost}
+      port: ${SPRING_DATA_REDIS_PORT:6379}
   mail:
     host: ${SMTP_HOST:smtp.gmail.com}
     port: ${SMTP_PORT:587}
@@ -34,7 +34,7 @@ google:
   oauth:
     client-id: ${GG_CLIENT_ID:${GG_CLIENT-ID:}}
     client-secret: ${GG_CLIENT_SECRET:${GG_CLIENT-SECRET:}}
-    redirect-uri: ${GG_REDIRECT_URI:http://localhost:8080/api/auth/google/callback}
+    redirect-url: ${GG_REDIRECT_URI:http://localhost:8080/api/auth/google/callback}
 
 server:
   port: 8080

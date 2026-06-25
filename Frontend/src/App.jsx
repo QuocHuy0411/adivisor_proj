@@ -9,6 +9,7 @@ import KhoaDashboard from './pages/KhoaDashboard.jsx';
 import CovanDashboard from './pages/CovanDashboard.jsx';
 import SinhVienDashboard from './pages/SinhVienDashboard.jsx';
 import NotificationsPage from './pages/NotificationsPage.jsx';
+import ChatPage from './pages/ChatPage.jsx';
 import { useAuth } from './context/AuthContext.jsx';
 
 function Home() {
@@ -35,6 +36,11 @@ export default function App() {
       <Route path="/notifications" element={
         <ProtectedRoute>
           <NotificationsPage />
+        </ProtectedRoute>
+      } />
+      <Route path="/chat" element={
+        <ProtectedRoute roles={['sinhvien', 'covan']}>
+          <ChatPage />
         </ProtectedRoute>
       } />
     </Routes>

@@ -7,7 +7,8 @@ export const api = axios.create({
 
 api.interceptors.request.use(
   (config) => {
-    if (config.url && (config.url.startsWith('/auth') || config.url.startsWith('auth'))) {
+    if (config.url && (config.url.startsWith('/auth') || config.url.startsWith('auth')
+        || config.url.startsWith('/chat') || config.url.startsWith('chat'))) {
       config.baseURL = import.meta.env.VITE_SPRING_BOOT_API_URL || 'http://localhost:8080/api';
     }
     return config;

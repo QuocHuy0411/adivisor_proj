@@ -9,12 +9,31 @@ export default function LoginPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [form, setForm] = useState({ ten_tai_khoan: '', mat_khau: '' });
-  const [error, setError] = useState(() => sessionStorage.getItem(LOGIN_ERROR_KEY) || '');
+  const [error, setError] = useState(() => {
+    const stored = sessionStorage.getItem(LOGIN_ERROR_KEY);
+    return stored || '';
+  });
   const [googleLoading, setGoogleLoading] = useState(searchParams.get('google') === 'success');
 
   useEffect(() => {
-    if (searchParams.get('google') === 'success' && !loading && !user) {
-      const nextError = 'Dang nhap Google that bai hoac email chua co trong he thong';
+    const googleStatus = searchParams.get('google');
+
+    if (googleStatus === 'error') {
+      const errorMessage = searchParams.get('error_message');
+      const errorCode = searchParams.get('error_code');
+      let nextError;
+      if (errorCode === '4009') {
+        nextError = 'Email Google của bạn chưa được đăng ký trong hệ thống. Vui lòng liên hệ quản trị viên.';
+      } else {
+        nextError = errorMessage
+          ? decodeURIComponent(errorMessage)
+          : 'Đăng nhập Google thất bại';
+      }
+      sessionStorage.setItem(LOGIN_ERROR_KEY, nextError);
+      setError(nextError);
+      setGoogleLoading(false);
+    } else if (googleStatus === 'success' && !loading && !user) {
+      const nextError = 'Đăng nhập Google thất bại. Vui lòng thử lại.';
       sessionStorage.setItem(LOGIN_ERROR_KEY, nextError);
       setError(nextError);
       setGoogleLoading(false);
