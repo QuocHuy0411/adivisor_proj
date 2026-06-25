@@ -21,6 +21,7 @@ api.interceptors.request.use(
 let isRefreshing = false;
 let failedQueue = [];
 
+// Xu ly cac request bi 401 trong luc dang refresh token de tat ca cung chay lai sau khi refresh xong.
 const processQueue = (error, token = null) => {
   failedQueue.forEach(prom => {
     if (error) {

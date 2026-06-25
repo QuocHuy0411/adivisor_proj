@@ -1,44 +1,66 @@
-# Adivisor - Hệ thống phân công Cố vấn học tập
+# Adivisor
 
-## 1. Giới thiệu
+Hệ thống web quản lý và phân công Cố vấn học tập (CVHT) cho lớp sinh viên.
 
-Adivisor là hệ thống web hỗ trợ quản lý và phân công Cố vấn học tập cho lớp sinh viên. Hệ thống phục vụ 5 nhóm người dùng:
+Adivisor hỗ trợ quy trình làm việc giữa Admin, Phòng Công tác Sinh viên (CTSV), Trưởng Khoa, CVHT và Sinh viên: quản lý tài khoản, import dữ liệu, lập danh sách lớp cần cố vấn, phân công CVHT, xử lý yêu cầu thay thế CVHT và gửi thông báo theo đúng phạm vi từng vai trò.
 
-- Quản trị viên
-- Nhân viên phòng Công tác Sinh viên
-- Trưởng Khoa
-- Cố vấn học tập
-- Sinh viên
+## Mục Lục
 
-Mục tiêu chính là số hóa quy trình lập danh sách lớp cần cố vấn, phân công CVHT, duyệt thay đổi CVHT theo 2 cấp và gửi thông báo đến các bên liên quan.
+- [Tổng Quan](#tổng-quan)
+- [Công Nghệ](#công-nghệ)
+- [Cấu Trúc Dự Án](#cấu-trúc-dự-án)
+- [Cài Đặt Và Khởi Chạy](#cài-đặt-và-khởi-chạy)
+- [Tài Khoản Mẫu](#tài-khoản-mẫu)
+- [Vai Trò Và Chức Năng](#vai-trò-và-chức-năng)
+- [Luồng Nghiệp Vụ](#luồng-nghiệp-vụ)
+- [Import Và Export](#import-và-export)
+- [API Chính](#api-chính)
+- [Quy Tắc Phân Quyền](#quy-tắc-phân-quyền)
+- [Kiểm Thử](#kiểm-thử)
+- [Xử Lý Sự Cố](#xử-lý-sự-cố)
 
-## 2. Công nghệ sử dụng
+## Tổng Quan
+
+Hệ thống hiện có các nhóm chức năng chính:
+
+- Xác thực đăng nhập, đăng xuất, JWT session, refresh token.
+- Đổi mật khẩu lần đầu bằng trường `TAI_KHOAN.da_doi_mk`.
+- Quên mật khẩu bằng OTP gửi email và reset mật khẩu.
+- Chặn brute-force đăng nhập bằng bảng `DANG_NHAP_THAT_BAI`.
+- Admin quản lý tài khoản nhân viên, thông tin CVHT và import CSV.
+- CTSV quản lý lớp, sinh viên, tài khoản sinh viên, lập/gửi yêu cầu phân công.
+- Trưởng Khoa phân công CVHT thủ công hoặc tự động, cập nhật độ ưu tiên CVHT.
+- CVHT xem lớp phụ trách, xem sinh viên, gửi yêu cầu dừng cố vấn.
+- CTSV/Giám đốc duyệt cuối phân công và thay thế CVHT.
+- Hệ thống thông báo theo role, mỗi role chỉ thấy thông báo đúng người nhận.
+- Bảng dữ liệu hỗ trợ cân bằng cột, căn giữa cột số, export CSV hoặc XLSX.
+
+## Công Nghệ
 
 | Thành phần | Công nghệ |
 | --- | --- |
-| Backend | NodeJS, ExpressJS, JWT |
-| Frontend | ReactJS, Vite |
-| Cơ sở dữ liệu | MySQL 8 |
-| Đóng gói | Docker, Docker Compose |
+| Frontend | React 18, Vite, React Router, Axios, xlsx |
+| Backend nghiệp vụ | Node.js, Express, MySQL2, JWT, Multer, Nodemailer |
+| Backend xác thực bổ sung | Spring Boot, Spring Security Crypto, JPA, JWT, OAuth2, Mail |
+| Database | MySQL 8 |
+| Local services | Docker Compose, Redis, phpMyAdmin |
 
-## 3. Cấu trúc thư mục
+Frontend đang route các request `/auth/*` sang `VITE_SPRING_BOOT_API_URL` mặc định `http://localhost:8080/api`. Các API nghiệp vụ còn lại dùng `VITE_API_URL` mặc định `http://localhost:5000/api`.
+
+Node backend vẫn có module auth tương ứng, nhưng client hiện tại ưu tiên Spring Boot cho nhóm API xác thực.
+
+## Cấu Trúc Dự Án
 
 ```txt
 adivisor/
   Backend/
     src/
-      config/
-      database/
-      middlewares/
-      modules/
-        auth/
-        admin/
-        ctsv/
-        khoa/
-        covan/
-        sinhvien/
-        notifications/
-      utils/
+      config/              # Cấu hình env và database
+      database/            # schema.sql, seed.sql, init-db.js
+      middlewares/         # Authenticate, role guard, error handler
+      modules/             # auth, admin, ctsv, khoa, covan, sinhvien, notifications
+      utils/               # stateMachine, csv, ids, passwords, httpError
+  BackendSpringBoot/       # Service xác thực/OAuth2/mail
   Frontend/
     src/
       api/
@@ -47,64 +69,88 @@ adivisor/
       pages/
       styles/
   docker-compose.yml
+  AGENTS.md
   README.md
-  AI-CONTEXT.md
 ```
 
-## 4. Hướng dẫn chạy dự án
+## Cài Đặt Và Khởi Chạy
 
-### 4.1 Yêu cầu hệ thống
+### Yêu Cầu
 
-- **Docker Desktop** (bao gồm Docker Engine và Docker Compose)
-- **Git** để clone repository
-- **Cổng trống**: 5173 (Frontend), 5000 (Backend), 3306 (MySQL), 8081 (phpMyAdmin)
+- Docker Desktop và Docker Compose.
+- Node.js 18+ nếu chạy thủ công Backend/Frontend.
+- Java 21 nếu chạy thủ công `BackendSpringBoot`.
+- MySQL 8 nếu không dùng Docker.
 
-### 4.2 Chạy với Docker (Khuyến nghị)
+Cổng mặc định:
 
-**Bước 1:** Mở terminal tại thư mục gốc của dự án
+| Dịch vụ | Cổng |
+| --- | --- |
+| Frontend | `5173` |
+| Node API | `5000` |
+| Spring Boot API | `8080` |
+| MySQL | `3306` |
+| Redis | `6379` |
+| phpMyAdmin | `8081` |
 
-```bash
-cd adivisor
-```
-
-**Bước 2:** Khởi động toàn bộ ứng dụng bằng Docker Compose
+### Chạy Bằng Docker Compose
 
 ```bash
 docker compose up -d --build
 ```
 
-`-d` giúp container chạy nền; sau khi lên xong, mở trình duyệt vào các địa chỉ localhost bên dưới.
-
-Lần đầu tiên sẽ mất khoảng 2-3 phút để tải image, build container và khởi tạo database.
-
-**Bước 3:** Truy cập các dịch vụ sau khi khởi động xong:
+Địa chỉ sau khi chạy:
 
 | Dịch vụ | URL |
 | --- | --- |
-| Frontend (React App) | `http://localhost:5173` |
-| Backend API | `http://localhost:5000/api` |
+| Frontend | `http://localhost:5173` |
+| Node API | `http://localhost:5000/api` |
+| Health check | `http://localhost:5000/api/health` |
+| Spring Boot API | `http://localhost:8080/api` |
 | phpMyAdmin | `http://localhost:8081` |
-| MySQL Server | `localhost:3306` |
 
-**Bước 4:** Dừng ứng dụng khi không dùng nữa
+Lệnh hữu ích:
 
 ```bash
+docker compose ps
+docker compose logs -f backend
+docker compose logs -f backend-springboot
+docker compose logs -f frontend
 docker compose down
 ```
 
-### 4.3 Chạy ở chế độ Development (Không dùng Docker)
+Khởi tạo lại database từ đầu:
 
-**Backend:**
+```bash
+docker compose down -v
+docker compose up -d --build
+```
+
+### Chạy Thủ Công
+
+Chạy MySQL/Redis bằng Docker nếu cần:
+
+```bash
+docker compose up -d mysql redis
+```
+
+Backend Node:
 
 ```bash
 cd Backend
 npm install
+npm run db:init
 npm run dev
 ```
 
-Backend sẽ chạy tại `http://localhost:5000/api` và tự động reload khi code thay đổi.
+Spring Boot:
 
-**Frontend (Terminal khác):**
+```bash
+cd BackendSpringBoot
+.\mvnw.cmd spring-boot:run
+```
+
+Frontend:
 
 ```bash
 cd Frontend
@@ -112,63 +158,80 @@ npm install
 npm run dev
 ```
 
-Frontend sẽ chạy tại `http://localhost:5173`.
+## Cấu Hình
 
-**Cơ sở dữ liệu:**
+Docker Compose đọc `.env` ở thư mục gốc nếu có. Các biến quan trọng:
 
-Bạn cần setup MySQL 8 trước:
+| Biến | Mặc định | Ý nghĩa |
+| --- | --- | --- |
+| `VITE_API_URL` | `http://localhost:5000/api` | Node API nghiệp vụ |
+| `VITE_SPRING_BOOT_API_URL` | `http://localhost:8080/api` | API xác thực |
+| `DB_HOST` | `localhost` hoặc `mysql` | Host MySQL |
+| `DB_NAME` | `adivisor` | Tên database |
+| `DB_USER` | `adivisor` | User database |
+| `DB_PASSWORD` | `adivisor_password` | Mật khẩu database |
+| `JWT_SECRET` | `adivisor_dev_secret_change_me` | Secret ký access token |
+| `JWT_REFRESH_SECRET` | `dev_refresh_secret_change_me` | Secret ký refresh token |
+| `FRONTEND_URL` | `http://localhost:5173` | Origin frontend được phép gọi API |
+| `SMTP_*` | tùy cấu hình | Gửi OTP quên mật khẩu |
+| `GG_CLIENT_ID`, `GG_CLIENT_SECRET` | rỗng | Google OAuth2 nếu sử dụng |
 
-```bash
-cd Backend
-node src/database/init-db.js
-```
+## Tài Khoản Mẫu
 
-### 4.4 Lưu ý
-
-- Backend sẽ tự động khởi tạo database khi container Docker khởi động.
-- Nếu chạy development mode, cần cài MySQL 8 trên máy hoặc sử dụng container MySQL riêng.
-- Database sẽ được khởi tạo lần đầu dựa trên script `schema.sql` và `seed.sql`.
-- Mật khẩu MySQL mặc định trong Docker: `root`.
-
-## 5. Tài khoản mẫu
-
-Sau khi khởi tạo database, hệ thống có các tài khoản mẫu:
+Dữ liệu mẫu được tạo từ `Backend/src/database/seed.sql` khi chạy `npm run db:init`.
 
 | Vai trò | Tài khoản | Mật khẩu mặc định |
 | --- | --- | --- |
-| Quản trị viên | `admin` | `admin` |
+| Admin | `admin` | `admin` |
 | CTSV | `CTSV01` | `ctsv` |
 | Trưởng Khoa CNTT | `TKCNTT01` | `cntt02` |
 | CVHT | `CVHT01` | `cvht` |
 | Sinh viên | `SV001` | `0900000001` |
 
-**Lưu ý:** Sau lần đăng nhập đầu tiên, người dùng **bắt buộc phải đổi mật khẩu** trước khi sử dụng các chức năng khác. Hãy chọn mật khẩu mạnh và lưu giữ an toàn.
+Sau lần đăng nhập đầu tiên, người dùng bắt buộc đổi mật khẩu. Khi đổi thành công, `TAI_KHOAN.da_doi_mk = true`.
 
-## 6. Luồng nghiệp vụ chính
+## Vai Trò Và Chức Năng
 
-### 6.1 Phân công CVHT cho lớp mới
+| Vai trò | Chức năng |
+| --- | --- |
+| Admin | Xem nhóm nhân viên theo khoa, quản lý tài khoản nhân viên, quản lý thông tin CVHT, import Trưởng Khoa/CTSV/CVHT bằng CSV. |
+| CTSV | CRUD lớp, import lớp, CRUD sinh viên, import sinh viên, tạo tài khoản sinh viên, gửi yêu cầu phân công, duyệt/từ chối phân công và thay thế, export CSV/XLSX. |
+| Trưởng Khoa | Xem yêu cầu phân công thuộc khoa, cập nhật `uu_tien`, auto-assign, chọn CVHT thủ công, gửi danh sách lên CTSV, duyệt bước 1 yêu cầu thay thế. |
+| CVHT | Xem hồ sơ, lớp đang phụ trách, sinh viên trong lớp, gửi yêu cầu dừng cố vấn, xem lịch sử yêu cầu đã gửi. |
+| Sinh viên | Xem profile và CVHT đang phụ trách lớp mình. |
 
-Trạng thái bảng `PHAN_CONG`:
+## Luồng Nghiệp Vụ
+
+### Phân Công CVHT
+
+Trạng thái chính trong `PHAN_CONG`:
 
 ```txt
-Chờ phân công -> Đang phân công -> Đã phân công -> Đã đóng
+Chờ phân công -> Đã phân công -> Chờ giám đốc duyệt -> Đã đóng
 ```
 
 Quy trình:
 
-1. CTSV tạo/lập danh sách lớp cần CVHT.
-2. CTSV gửi yêu cầu phân công cho Khoa.
-3. Trưởng Khoa chọn CVHT phù hợp.
-4. Trưởng Khoa gửi danh sách cho CTSV.
-5. CTSV duyệt cuối.
-6. Hệ thống cập nhật `LOP.ma_co_van`, đóng phân công và gửi thông báo.
+1. CTSV tạo/import lớp và sinh viên.
+2. CTSV bấm gửi yêu cầu cho các Khoa. Backend chỉ tạo `PHAN_CONG` mới cho lớp có sinh viên, chưa có CVHT và chưa có request active.
+3. Trưởng Khoa chọn CVHT thủ công hoặc dùng auto-assign.
+4. Auto-assign ưu tiên CVHT đúng chuyên ngành, `uu_tien` nhỏ hơn và còn dưới 2 lớp phụ trách.
+5. Trưởng Khoa gửi danh sách lên CTSV/Giám đốc.
+6. CTSV/Giám đốc duyệt cuối: cập nhật `LOP.ma_co_van`, đóng `PHAN_CONG`, gửi thông báo cho lớp, khoa và CVHT.
+7. Nếu CTSV từ chối, request quay về `Chờ phân công` để Khoa xử lý lại.
 
-### 6.2 CVHT xin dừng/thay thế lớp phụ trách
+Lưu ý:
 
-Trạng thái bảng `YEU_CAU_THAY_THE`:
+- Lớp `Chưa có cố vấn` chưa đồng nghĩa với đã gửi yêu cầu.
+- Nút gửi yêu cầu trên CTSV luôn mở; backend sẽ báo lỗi rõ nếu không có yêu cầu mới cần gửi.
+- CTSV không nhận thông báo kết quả "đã phân công"; CTSV chỉ nhận thông báo khi có việc cần xử lý.
+
+### Thay Thế CVHT
+
+Trạng thái chính trong `YEU_CAU_THAY_THE`:
 
 ```txt
-Chờ duyệt -> Đang duyệt bước 1 -> Đã duyệt bước 1 -> Đang duyệt bước 2 -> Đã duyệt bước 2 -> Đã đóng
+Chờ duyệt -> Khoa đang duyệt -> Khoa đã duyệt -> Giám đốc đang duyệt -> Giám đốc đã duyệt -> Đã đóng
 ```
 
 Nhánh từ chối:
@@ -179,19 +242,60 @@ Bị từ chối
 
 Quy trình:
 
-1. CVHT gửi yêu cầu dừng cố vấn.
-2. Trưởng Khoa bắt đầu duyệt bước 1.
-3. Trưởng Khoa chấp nhận hoặc từ chối.
-4. Nếu chấp nhận, Trưởng Khoa chọn CVHT mới.
-5. CTSV bắt đầu duyệt bước 2.
-6. CTSV chấp nhận hoặc từ chối.
-7. Nếu chấp nhận, hệ thống cập nhật lớp, đóng yêu cầu và gửi thông báo.
+1. CVHT gửi yêu cầu dừng cố vấn cho lớp đang phụ trách.
+2. Backend tạo một `PHAN_CONG` phục vụ luồng thay thế, năm học lấy theo `currentAcademicYear()`, và tạo `YEU_CAU_THAY_THE = Chờ duyệt`.
+3. Khoa nhận thông báo và duyệt bước 1.
+4. Khi Khoa duyệt, Khoa chọn CVHT mới, lưu vào `PHAN_CONG`, chuyển request thành `Khoa đã duyệt`, gửi thông báo cho CTSV/Giám đốc cần xử lý tiếp.
+5. CTSV/Giám đốc duyệt bước cuối, cập nhật `LOP.ma_co_van`, đóng `PHAN_CONG` và `YEU_CAU_THAY_THE`, gửi thông báo kết quả cho lớp, khoa, CVHT cũ và CVHT mới.
+6. Nếu Khoa từ chối, chỉ thông báo CVHT và không báo CTSV.
+7. Nếu CTSV/Giám đốc từ chối, thông báo lại Khoa và CVHT cũ.
 
-## 7. API chính
+Duplicate check của CVHT chỉ chặn các request active:
+
+```txt
+Chờ duyệt, Khoa đang duyệt, Khoa đã duyệt, Giám đốc đang duyệt
+```
+
+Request đã đóng/bị từ chối hoặc trạng thái legacy kết thúc không chặn gửi yêu cầu mới.
+
+### Notification Engine
+
+Thông báo được lưu trong `THONG_BAO` và `THONG_BAO_NGUOI_NHAN`.
+
+- Admin xem toàn bộ thông báo.
+- CTSV chỉ xem notification có recipient `loai_nguoi_nhan = 'ctsv'` và `ma_doi_tuong = 'ALL'`.
+- Khoa chỉ xem thông báo gửi đúng `ma_khoa`.
+- CVHT chỉ xem thông báo gửi đúng `ma_co_van`.
+- Sinh viên xem thông báo theo `ma_lop`.
+
+## Import Và Export
+
+### Import CSV
+
+| Chức năng | Endpoint | Cột cần có |
+| --- | --- | --- |
+| Import Trưởng Khoa | `POST /api/admin/faculty-heads/import` | Mã nhân viên, Họ và tên, Email, Khoa |
+| Import nhân viên CTSV | `POST /api/admin/ctsv/import` | Mã nhân viên, Họ và tên, Email |
+| Import thông tin CVHT | `POST /api/admin/advisors/info/import` | Mã nhân viên, Họ và tên, Số điện thoại, Khoa, Chuyên ngành, Ưu tiên |
+| Import tài khoản CVHT | `POST /api/admin/advisors/accounts/import` | Mã nhân viên, Email |
+| Import gộp CVHT | `POST /api/admin/advisors/full/import` | Mã nhân viên, Họ và tên, Số điện thoại, Email, Khoa, Chuyên ngành, Ưu tiên |
+| Import lớp | `POST /api/ctsv/classes/import` | Mã lớp, Tên lớp, Mã khoa, Chuyên ngành |
+| Import sinh viên | `POST /api/ctsv/students/import` | Mã sinh viên, Họ và tên, Email, Số điện thoại, Mã lớp |
+
+### Export
+
+CTSV có thể export danh sách phân công/thay thế đang chờ duyệt hoặc lịch sử:
+
+- CSV: giữ định dạng `.csv`.
+- Excel: xuất `.xlsx` bằng thư viện `xlsx`.
+
+## API Chính
 
 ### Auth
 
 - `POST /api/auth/login`
+- `POST /api/auth/logout`
+- `POST /api/auth/refresh-token`
 - `GET /api/auth/me`
 - `POST /api/auth/change-password`
 - `POST /api/auth/forgot-password`
@@ -200,33 +304,51 @@ Quy trình:
 
 ### Admin
 
-- `GET /api/admin/accounts`
 - `GET /api/admin/faculties`
+- `GET /api/admin/employee-groups`
+- `GET /api/admin/employee-groups/:id/accounts`
+- `PATCH /api/admin/employee-accounts/:id`
+- `DELETE /api/admin/employee-accounts/:id`
 - `GET /api/admin/faculties/:id/employees`
+- `GET /api/admin/advisors/info`
+- `GET /api/admin/advisor-groups/:id/advisors`
+- `PATCH /api/admin/advisors/info/:id`
+- `DELETE /api/admin/advisors/info/:id`
+- `GET /api/admin/accounts`
 - `PATCH /api/admin/accounts/:id/status`
 - `POST /api/admin/faculty-heads/import`
+- `POST /api/admin/ctsv/import`
+- `POST /api/admin/advisors/info/import`
+- `POST /api/admin/advisors/accounts/import`
 - `POST /api/admin/advisors/full/import`
-
-Admin không tạo thủ công trên giao diện. Các chức năng tạo nhân sự đều thực hiện bằng file CSV:
-
-| Chức năng | Cột CSV bắt buộc | Ghi chú |
-| --- | --- | --- |
-| Tạo tài khoản Trưởng Khoa | `Mã nhân viên`, `Họ và tên`, `Email`, `Khoa` | Khoa phải ghi đầy đủ, ví dụ `Công nghệ thông tin` |
-| Tạo thông tin và tài khoản CVHT | `Mã cố vấn`, `Họ và tên`, `Số điện thoại`, `Email`, `Khoa`, `Chuyên ngành`, `Ưu tiên` | Tạo thông tin CVHT và tài khoản CVHT trong cùng một lần import |
 
 ### CTSV
 
-- `GET /api/ctsv/classes`
-- `POST /api/ctsv/classes`
 - `GET /api/ctsv/students`
 - `POST /api/ctsv/students`
+- `POST /api/ctsv/students/import`
+- `PATCH /api/ctsv/students/:id`
+- `PATCH /api/ctsv/students/:id/account-status`
+- `DELETE /api/ctsv/students/:id`
+- `GET /api/ctsv/class-groups`
+- `GET /api/ctsv/classes`
+- `POST /api/ctsv/classes`
+- `POST /api/ctsv/classes/import`
+- `POST /api/ctsv/classes/reset-advisors`
+- `POST /api/ctsv/classes/send-to-faculties`
+- `PATCH /api/ctsv/classes/:id`
+- `DELETE /api/ctsv/classes/:id`
+- `DELETE /api/ctsv/classes/:id/students`
 - `GET /api/ctsv/assignments`
 - `POST /api/ctsv/assignments`
+- `POST /api/ctsv/assignments/approve-all`
+- `POST /api/ctsv/assignments/reject-all`
 - `POST /api/ctsv/assignments/:id/send`
 - `POST /api/ctsv/assignments/:id/approve`
 - `POST /api/ctsv/assignments/:id/reject`
 - `GET /api/ctsv/replacement-requests`
-- `POST /api/ctsv/replacement-requests/:id/start-step-2`
+- `POST /api/ctsv/replacement-requests/approve-all`
+- `POST /api/ctsv/replacement-requests/reject-all`
 - `POST /api/ctsv/replacement-requests/:id/approve`
 - `POST /api/ctsv/replacement-requests/:id/reject`
 
@@ -235,10 +357,11 @@ Admin không tạo thủ công trên giao diện. Các chức năng tạo nhân 
 - `GET /api/khoa/assignments`
 - `GET /api/khoa/advisors`
 - `PATCH /api/khoa/advisors/:id/priority`
+- `POST /api/khoa/assignments/auto-assign`
+- `POST /api/khoa/assignments/submit-all`
 - `POST /api/khoa/assignments/:id/assign`
 - `POST /api/khoa/assignments/:id/submit`
 - `GET /api/khoa/replacement-requests`
-- `POST /api/khoa/replacement-requests/:id/start-step-1`
 - `POST /api/khoa/replacement-requests/:id/approve-step-1`
 - `POST /api/khoa/replacement-requests/:id/reject-step-1`
 
@@ -247,127 +370,126 @@ Admin không tạo thủ công trên giao diện. Các chức năng tạo nhân 
 - `GET /api/covan/me`
 - `GET /api/covan/classes`
 - `GET /api/covan/classes/:id/students`
-- `POST /api/covan/replacement-requests`
 - `GET /api/covan/replacement-requests`
+- `POST /api/covan/replacement-requests`
 
-### Sinh viên
+### Sinh Viên
 
 - `GET /api/sinhvien/me`
 - `GET /api/sinhvien/advisor`
 
-### Thông báo
+### Thông Báo
 
 - `GET /api/notifications`
 - `POST /api/notifications`
 
-## 8. Quy tắc phân quyền
+## Quy Tắc Phân Quyền
 
-- Admin quản lý tài khoản và dữ liệu CVHT.
-- Admin không được khóa tài khoản Admin.
-- CTSV quản lý sinh viên, lớp, phân công và duyệt toàn hệ thống.
+- Mọi API nghiệp vụ yêu cầu đăng nhập và đã đổi mật khẩu.
+- Role được kiểm tra bằng `loai_tai_khoan`.
+- Admin quản lý tài khoản/dữ liệu CVHT, không khóa/xóa tài khoản admin.
+- CTSV có quyền tổng hợp và duyệt cuối toàn hệ thống.
 - Trưởng Khoa chỉ thao tác dữ liệu thuộc `ma_khoa` của mình.
-- CVHT chỉ xem lớp mình phụ trách và sinh viên trong các lớp đó.
-- Sinh viên chỉ xem thông tin CVHT của lớp mình.
+- CVHT chỉ xem lớp mình phụ trách và sinh viên của lớp đó.
+- Sinh viên chỉ xem thông tin lớp và CVHT của chính mình.
+- Notification trả về theo recipient scope, không trả thông báo ngoài phạm vi role.
 
-## 9. Lưu ý triển khai
+## Kiểm Thử
 
-- Không đổi tên bảng và cột so với thiết kế.
-- `PHAN_CONG.ma_co_van` cho phép `NULL` vì khi CTSV lập danh sách ban đầu chưa có CVHT.
-- `CVHT.ma_tai_khoan` cho phép `NULL` vì Admin phải tạo thông tin CVHT trước, sau đó mới import tài khoản CVHT.
-- Luồng thay thế CVHT không thêm bảng mới. Hệ thống dùng:
-  - `YEU_CAU_THAY_THE.ma_co_van`: CVHT cũ gửi yêu cầu.
-  - `PHAN_CONG.ma_co_van`: CVHT mới được Khoa đề xuất.
-- Mỗi CVHT phụ trách tối đa 2 lớp.
-- CVHT có `uu_tien = 3` không được phân công theo quy định nghiệp vụ hiện tại.
-
-## 10. Troubleshooting
-
-### Lỗi: Port đã được sử dụng
-
-**Triệu chứng:** `bind EADDRINUSE: address already in use :::5000` hoặc tương tự
-
-**Giải pháp:**
-
-- Cách 1: Dừng ứng dụng đang chạy trên port đó
-- Cách 2: Thay đổi port trong file `.env` (Backend) hoặc `vite.config.js` (Frontend)
-
-### Lỗi: Docker Compose không khởi động được
-
-**Triệu chứng:** `Cannot connect to Docker daemon` hoặc `docker-compose: command not found`
-
-**Giải pháp:**
-
-1. Kiểm tra Docker Desktop đã cài và chạy chưa
-2. Khởi động lại Docker Desktop
-3. Chạy lệnh: `docker compose version` để kiểm tra
-
-### Lỗi: Database không khởi tạo
-
-**Triệu chứng:** Lỗi khi đăng nhập hoặc không thấy dữ liệu
-
-**Giải pháp:**
+Kiểm tra backend Node:
 
 ```bash
-# Xóa container và volume cũ
-docker compose down -v
-
-# Khởi động lại
-docker compose up -d --build
+node --check Backend/src/modules/auth/auth.service.js
+node --check Backend/src/modules/admin/admin.service.js
+node --check Backend/src/modules/ctsv/ctsv.service.js
+node --check Backend/src/modules/khoa/khoa.service.js
+node --check Backend/src/modules/covan/covan.service.js
+node --check Backend/src/modules/sinhvien/sinhvien.service.js
+node --check Backend/src/modules/notifications/notifications.service.js
 ```
 
-### Lỗi: CORS error khi gọi API
-
-**Triệu chứng:** `Access to XMLHttpRequest blocked by CORS policy`
-
-**Giải pháp:**
-
-- Kiểm tra Backend chạy tại `http://localhost:5000`
-- Kiểm tra file `src/app.js` trong Backend có cấu hình CORS đúng không
-
-### Lỗi: Không thể đăng nhập
-
-**Triệu chứng:** Đăng nhập thất bại hoặc mật khẩu sai
-
-**Giải pháp:**
-
-1. Kiểm tra tên tài khoản và mật khẩu đúng không (xem mục 5)
-2. Xóa localStorage browser: `F12` -> `Application` -> `Local Storage` -> xóa
-3. Thử đăng nhập tài khoản khác để kiểm tra
-
-### Cảnh báo: Nodemailer vulnerability
-
-**Triệu chứng:** `npm audit` báo 1 high severity vulnerability
-
-**Giải pháp:**
-
-```bash
-cd Backend
-npm audit fix --force
-npm install
-```
-
-### Lỗi: Frontend không load CSS/JS
-
-**Triệu chứng:** Trang trắng hoặc lỗi 404 trên console
-
-**Giải pháp:**
+Build frontend:
 
 ```bash
 cd Frontend
-rm -rf node_modules package-lock.json
-npm install
-npm run dev
+npm run build
 ```
 
-## 11. Kiểm thử thủ công đề xuất
+Kiểm tra thủ công đề xuất:
 
-1. Đăng nhập admin, đổi mật khẩu, tạo CVHT hoặc nhân sự.
-2. Đăng nhập CTSV, tạo lớp và lập danh sách phân công.
-3. CTSV gửi yêu cầu cho Khoa.
-4. Đăng nhập Trưởng Khoa, chọn CVHT và gửi CTSV.
-5. CTSV duyệt danh sách.
-6. Đăng nhập Sinh viên để xem CVHT lớp mình.
-7. Đăng nhập CVHT, gửi yêu cầu dừng cố vấn.
-8. Trưởng Khoa duyệt bước 1 và chọn CVHT mới.
-9. CTSV duyệt bước 2.
-10. Kiểm tra thông báo ở các tài khoản liên quan.
+1. Đăng nhập Admin, đổi mật khẩu lần đầu, kiểm tra bảng tài khoản nhân viên và thông tin CVHT.
+2. Đăng nhập CTSV, import/từng bước tạo lớp và sinh viên.
+3. CTSV bấm gửi yêu cầu phân công.
+4. Đăng nhập Trưởng Khoa, auto-assign hoặc chọn CVHT thủ công, gửi lên CTSV.
+5. CTSV duyệt phân công, kiểm tra lớp có CVHT và thông báo đúng role.
+6. Đăng nhập CVHT, gửi yêu cầu dừng cố vấn, kiểm tra bảng "Yêu cầu đã gửi".
+7. Trưởng Khoa duyệt bước 1 và chọn CVHT mới.
+8. CTSV/Giám đốc duyệt bước cuối, kiểm tra lịch sử thay thế ở các role.
+9. Export CSV và XLSX từ CTSV.
+
+## Xử Lý Sự Cố
+
+### Frontend không đăng nhập được
+
+Kiểm tra Spring Boot Auth API và Redis:
+
+```bash
+docker compose ps
+docker compose logs -f backend-springboot
+```
+
+Kiểm tra biến frontend:
+
+```env
+VITE_SPRING_BOOT_API_URL=http://localhost:8080/api
+```
+
+### Database sai hoặc cần reset dữ liệu mẫu
+
+Bằng Docker:
+
+```bash
+docker compose down -v
+docker compose up -d --build
+```
+
+Bằng Node backend thủ công:
+
+```bash
+cd Backend
+npm run db:init
+```
+
+### Không gửi được OTP
+
+Kiểm tra SMTP trong `.env`. Nếu dùng Gmail, cần App Password.
+
+```env
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_SECURE=false
+SMTP_USER=your_gmail@gmail.com
+SMTP_PASSWORD=your_gmail_app_password
+SMTP_FROM=your_gmail@gmail.com
+```
+
+### Đăng nhập sai quá nhiều lần
+
+Hệ thống giới hạn 5 lần sai mật khẩu mỗi ngày cho một tên tài khoản. Trong môi trường phát triển có thể xóa bản ghi từ `DANG_NHAP_THAT_BAI` nếu cần mở lại ngay.
+
+### Port đã được sử dụng
+
+```powershell
+netstat -ano | findstr :5000
+netstat -ano | findstr :5173
+netstat -ano | findstr :8080
+netstat -ano | findstr :3306
+```
+
+## Ghi Chú Phát Triển
+
+- Không tự ý đổi tên bảng/cột database.
+- Không thêm bảng mới nếu chưa có nhu cầu nghiệp vụ rõ ràng.
+- Khi thêm API, cần kiểm tra role và scope dữ liệu.
+- Trạng thái phân công/thay thế phải đi qua `Backend/src/utils/stateMachine.js`.
+- Khi triển khai thật, bắt buộc đổi secret JWT, mật khẩu database, cấu hình SMTP/OAuth và cookie secure.

@@ -28,9 +28,7 @@ router.post('/assignments/:id/submit', asyncHandler(async (req, res) => {
 router.get('/replacement-requests', asyncHandler(async (req, res) => {
   res.json(await service.listReplacementRequests(req.user));
 }));
-router.post('/replacement-requests/:id/start-step-1', asyncHandler(async (req, res) => {
-  res.json(await service.startReplacementStep1(req.user, req.params.id));
-}));
+
 router.post('/replacement-requests/:id/approve-step-1', asyncHandler(async (req, res) => {
   res.json(await service.approveReplacementStep1(req.user, req.params.id, req.body.ma_co_van_moi));
 }));

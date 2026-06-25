@@ -65,6 +65,7 @@ function Toast({ type, children, onClose }) {
   );
 }
 
+// Form import CSV dung chung cho tao Truong Khoa, CTSV va goi thong tin + tai khoan CVHT.
 function CsvCreatePanel({ title, note, endpoint, onDone, onError }) {
   const [file, setFile] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -99,6 +100,7 @@ function CsvCreatePanel({ title, note, endpoint, onDone, onError }) {
   );
 }
 
+// Modal sua tai khoan nhan vien cua Admin, chi cap nhat thong tin hien thi va email.
 function AccountEditForm({ account, onCancel, onSave }) {
   const [form, setForm] = useState({ ho_va_ten: account.ho_va_ten || '', email: account.email || '' });
 
@@ -128,6 +130,7 @@ function AccountEditForm({ account, onCancel, onSave }) {
   );
 }
 
+// Modal sua ho so CVHT rieng voi tai khoan, giu uu_tien do Khoa quan ly.
 function AdvisorEditForm({ advisor, faculties, onCancel, onSave }) {
   const [form, setForm] = useState({
     ho_va_ten: advisor.ho_va_ten || '',
@@ -197,11 +200,13 @@ export default function AdminDashboard() {
     [employeeGroups]
   );
 
+  // Nap cac nhom nhan vien theo don vi de Admin xem tong quan so luong nhan su tung khoa.
   async function loadEmployeeGroups() {
     const { data } = await api.get('/admin/employee-groups');
     setEmployeeGroups(data);
   }
 
+  // Mo bang tai khoan nhan vien cua mot don vi, gom CTSV hoac Truong Khoa/CVHT trong khoa.
   async function openEmployeeGroup(group) {
     setSelectedAccountGroup(group);
     const { data } = await api.get(`/admin/employee-groups/${group.ma_don_vi}/accounts`);
@@ -210,6 +215,7 @@ export default function AdminDashboard() {
     setAccountModalOpen(true);
   }
 
+  // Mo bang thong tin CVHT cua mot khoa de Admin sua/xoa ho so co van.
   async function openAdvisorGroup(group) {
     setSelectedAdvisorGroup(group);
     const { data } = await api.get(`/admin/advisor-groups/${group.ma_don_vi}/advisors`);
@@ -231,14 +237,22 @@ export default function AdminDashboard() {
     return () => window.clearTimeout(timer);
   }, [message, error]);
 
+  // Sau khi import thanh cong, dong cac modal va tai lai thong ke nhan vien.
   async function afterCreate(nextMessage) {
     setMessage(nextMessage);
     setError('');
+    setSelectedAccountGroup(null);
+    setEmployeeAccounts([]);
+    setAccountModalOpen(false);
+    setEditingAccount(null);
+    setSelectedAdvisorGroup(null);
+    setAdvisorRows([]);
+    setAdvisorModalOpen(false);
+    setEditingAdvisor(null);
     await loadEmployeeGroups();
-    if (selectedAccountGroup) await openEmployeeGroup(selectedAccountGroup);
-    if (selectedAdvisorGroup) await openAdvisorGroup(selectedAdvisorGroup);
   }
 
+  // Khoa/mo khoa tai khoan nhan vien ma khong xoa du lieu ho so lien quan.
   async function toggleAccount(row) {
     if (!row.ma_tai_khoan) return;
     try {
@@ -251,6 +265,7 @@ export default function AdminDashboard() {
     }
   }
 
+  // Luu thay doi tai khoan nhan vien va tai lai bang dang mo de giu du lieu moi nhat.
   async function saveAccount(payload) {
     try {
       const { data } = await api.patch(`/admin/employee-accounts/${editingAccount.ma_tai_khoan}`, payload);
@@ -263,6 +278,7 @@ export default function AdminDashboard() {
     }
   }
 
+  // Xoa tai khoan nhan vien sau xac nhan, backend se chan cac tai khoan khong duoc xoa.
   async function deleteAccount(row) {
     if (!window.confirm(`Xóa tài khoản ${row.ten_tai_khoan}?`)) return;
     try {
@@ -275,6 +291,7 @@ export default function AdminDashboard() {
     }
   }
 
+  // Luu thay doi ho so CVHT va refresh bang CVHT cua khoa dang xem.
   async function saveAdvisor(payload) {
     try {
       const { data } = await api.patch(`/admin/advisors/info/${editingAdvisor.ma_co_van}`, payload);
@@ -287,6 +304,7 @@ export default function AdminDashboard() {
     }
   }
 
+  // Xoa ho so CVHT sau xac nhan, bao gom tai khoan neu CVHT da duoc tao tai khoan.
   async function deleteAdvisor(row) {
     if (!window.confirm(`Xóa thông tin CVHT ${row.ho_va_ten} và tài khoản tương ứng?`)) return;
     try {
@@ -355,8 +373,9 @@ export default function AdminDashboard() {
             <DataTable
               pageSize={5}
               columns={[
-                { key: 'ma_don_vi', label: 'Mã phòng/Khoa' },
-                { key: 'ten_don_vi', label: 'Tên phòng/Khoa' }
+                { key: 'ma_don_vi', label: 'Mã phòng/Khoa', width: '24%' },
+                { key: 'ten_don_vi', label: 'Tên phòng/Khoa', width: '56%' },
+                { key: 'so_luong_nhan_vien', label: 'Số lượng nhân viên', width: '20%', type: 'number' }
               ]}
               rows={employeeGroups}
               actions={(row) => (
@@ -370,8 +389,9 @@ export default function AdminDashboard() {
             <DataTable
               pageSize={5}
               columns={[
-                { key: 'ma_don_vi', label: 'Mã khoa' },
-                { key: 'ten_don_vi', label: 'Tên khoa' }
+                { key: 'ma_don_vi', label: 'Mã khoa', width: '24%' },
+                { key: 'ten_don_vi', label: 'Tên khoa', width: '56%' },
+                { key: 'so_luong_co_van', label: 'Số lượng nhân viên', width: '20%', type: 'number' }
               ]}
               rows={advisorGroups}
               actions={(row) => (
@@ -395,14 +415,15 @@ export default function AdminDashboard() {
             <DataTable
               pageSize={5}
               columns={[
-                { key: 'ma', label: 'Mã nhân viên' },
-                { key: 'ho_va_ten', label: 'Họ tên' },
-                { key: 'email', label: 'Email' },
-                { key: 'ten_tai_khoan', label: 'Tên tài khoản' },
-                { key: 'vai_tro', label: 'Vai trò' },
+                { key: 'ma', label: 'Mã nhân viên', width: '14%' },
+                { key: 'ho_va_ten', label: 'Họ tên', width: '20%' },
+                { key: 'email', label: 'Email', width: '24%', minWidth: '200px' },
+                { key: 'ten_tai_khoan', label: 'Tên tài khoản', width: '16%' },
+                { key: 'vai_tro', label: 'Vai trò', width: '12%' },
                 {
                   key: 'trang_thai',
                   label: 'Trạng thái',
+                  width: '14%',
                   renderText: (row) => row.is_active ? 'Đang hoạt động' : 'Ngừng hoạt động',
                   render: (row) => (
                     <span className={`status-pill ${row.is_active ? 'active' : 'inactive'}`}>
@@ -442,12 +463,12 @@ export default function AdminDashboard() {
             <DataTable
               pageSize={5}
               columns={[
-                { key: 'ma_co_van', label: 'Mã nhân viên' },
-                { key: 'ho_va_ten', label: 'Họ và tên' },
-                { key: 'email', label: 'Email' },
-                { key: 'so_dien_thoai', label: 'Số điện thoại' },
-                { key: 'chuyen_nganh', label: 'Chuyên ngành' },
-                { key: 'uu_tien', label: 'Ưu tiên' }
+                { key: 'ma_co_van', label: 'Mã nhân viên', width: '14%' },
+                { key: 'ho_va_ten', label: 'Họ và tên', width: '20%' },
+                { key: 'email', label: 'Email', width: '24%', minWidth: '200px' },
+                { key: 'so_dien_thoai', label: 'Số điện thoại', width: '14%', type: 'number' },
+                { key: 'chuyen_nganh', label: 'Chuyên ngành', width: '20%', minWidth: '180px' },
+                { key: 'uu_tien', label: 'Ưu tiên', width: '8%', type: 'number' }
               ]}
               rows={advisorRows}
               filterable

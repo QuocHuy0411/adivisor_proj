@@ -19,6 +19,7 @@ const roleNavItems = {
     { key: 'history', label: 'Lịch sử phân công', to: '/?view=history' }
   ],
   ctsv: [
+    { key: 'notifications', label: 'Thông báo', to: '/notifications' },
     { key: 'create', label: 'Tạo lớp và sinh viên', to: '/?view=create' },
     { key: 'students', label: 'Danh sách sinh viên', to: '/?view=students' },
     { key: 'assignments', label: 'Danh sách phân công cố vấn', to: '/?view=assignments' },
@@ -36,11 +37,14 @@ const roleNavItems = {
   ]
 };
 
+const REVIEWABLE_REPLACEMENT_STATUSES = ['Khoa đã duyệt', 'Giám đốc đang duyệt'];
+
 export default function AppLayout({ title, children, navItems = [], activeNav, onNavChange }) {
   const { user, logout } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const currentNavItems = navItems.length ? navItems : (roleNavItems[user?.loai_tai_khoan] || []);
 
   const [unreadNotifications, setUnreadNotifications] = useState(false);
@@ -54,62 +58,89 @@ export default function AppLayout({ title, children, navItems = [], activeNav, o
     const isOnNotifications = location.pathname === '/notifications';
     const isOnCtsvAssignments = location.pathname === '/' && params.get('view') === 'assignments';
     const isOnKhoaAssignment = location.pathname === '/' && (!params.get('view') || params.get('view') === 'assignment');
+    const notificationReadKey = `read_notification_ids:${user.ma_tai_khoan}`;
 
     try {
       if (user.loai_tai_khoan === 'khoa') {
-        const { data: assignments } = await api.get('/khoa/assignments');
+        const [{ data: assignments }, { data: replacementRequests }] = await Promise.all([
+          api.get('/khoa/assignments'),
+          api.get('/khoa/replacement-requests')
+        ]);
         
-        // 1. Khoa Assignment requests ('Chờ phân công')
+        // 1. Khoa Assignment/replacement requests
         const waitingAssignments = assignments.filter((a) => a.trang_thai === 'Chờ phân công');
-        const waitingIds = waitingAssignments.map((a) => a.ma_phan_cong);
+        const waitingAssignmentIds = waitingAssignments.map((a) => a.ma_phan_cong);
+        const waitingReplacementIds = replacementRequests
+          .filter((request) => ['Chờ duyệt', 'Khoa đang duyệt'].includes(request.trang_thai))
+          .map((request) => request.ma_yeu_cau);
         let seenKhoa = [];
+        let seenKhoaReplacements = [];
         try {
           seenKhoa = JSON.parse(localStorage.getItem('seen_khoa_assignments') || '[]');
         } catch {}
+        try {
+          seenKhoaReplacements = JSON.parse(localStorage.getItem('seen_khoa_replacements') || '[]');
+        } catch {}
         
         if (isOnKhoaAssignment) {
-          seenKhoa = Array.from(new Set([...seenKhoa, ...waitingIds]));
+          seenKhoa = Array.from(new Set([...seenKhoa, ...waitingAssignmentIds]));
+          seenKhoaReplacements = Array.from(new Set([...seenKhoaReplacements, ...waitingReplacementIds]));
           localStorage.setItem('seen_khoa_assignments', JSON.stringify(seenKhoa));
+          localStorage.setItem('seen_khoa_replacements', JSON.stringify(seenKhoaReplacements));
           setUnreadKhoaAssignments(false);
         } else {
-          const hasUnread = waitingIds.some((id) => !seenKhoa.includes(id));
-          setUnreadKhoaAssignments(hasUnread);
+          const hasUnreadAssignment = waitingAssignmentIds.some((id) => !seenKhoa.includes(id));
+          const hasUnreadReplacement = waitingReplacementIds.some((id) => !seenKhoaReplacements.includes(id));
+          setUnreadKhoaAssignments(hasUnreadAssignment || hasUnreadReplacement);
         }
 
-        // 2. Khoa Notifications ('Đã đóng' assignments)
-        const closedAssignments = assignments.filter((a) => a.trang_thai === 'Đã đóng');
-        const years = [...new Set(closedAssignments.map((a) => a.nam_hoc))];
+        // 2. Khoa Notifications
+        const { data: notifications } = await api.get('/notifications');
+        const notifIds = notifications.map((n) => n.ma_thong_bao);
         let readNotifications = [];
         try {
-          readNotifications = JSON.parse(localStorage.getItem('read_notification_ids') || '[]');
+          readNotifications = JSON.parse(localStorage.getItem(notificationReadKey) || '[]');
         } catch {}
 
         if (isOnNotifications) {
-          readNotifications = Array.from(new Set([...readNotifications, ...years]));
-          localStorage.setItem('read_notification_ids', JSON.stringify(readNotifications));
+          readNotifications = Array.from(new Set([...readNotifications, ...notifIds]));
+          localStorage.setItem(notificationReadKey, JSON.stringify(readNotifications));
           setUnreadNotifications(false);
         } else {
-          const hasUnread = years.some((yr) => !readNotifications.includes(yr));
+          const hasUnread = notifIds.some((id) => !readNotifications.includes(id));
           setUnreadNotifications(hasUnread);
         }
 
       } else if (user.loai_tai_khoan === 'ctsv') {
-        // 1. CTSV Assignments ('Chờ giám đốc duyệt')
-        const { data: assignments } = await api.get('/ctsv/assignments');
+        // 1. CTSV Assignment/replacement requests
+        const [{ data: assignments }, { data: replacementRequests }] = await Promise.all([
+          api.get('/ctsv/assignments'),
+          api.get('/ctsv/replacement-requests')
+        ]);
         const directorWaiting = assignments.filter((a) => a.trang_thai === 'Chờ giám đốc duyệt');
-        const waitingIds = directorWaiting.map((a) => a.ma_phan_cong);
+        const waitingAssignmentIds = directorWaiting.map((a) => a.ma_phan_cong);
+        const waitingReplacementIds = replacementRequests
+          .filter((request) => REVIEWABLE_REPLACEMENT_STATUSES.includes(request.trang_thai))
+          .map((request) => request.ma_yeu_cau);
         let seenCtsv = [];
+        let seenCtsvReplacements = [];
         try {
           seenCtsv = JSON.parse(localStorage.getItem('seen_ctsv_assignments') || '[]');
         } catch {}
+        try {
+          seenCtsvReplacements = JSON.parse(localStorage.getItem('seen_ctsv_replacements') || '[]');
+        } catch {}
 
         if (isOnCtsvAssignments) {
-          seenCtsv = Array.from(new Set([...seenCtsv, ...waitingIds]));
+          seenCtsv = Array.from(new Set([...seenCtsv, ...waitingAssignmentIds]));
+          seenCtsvReplacements = Array.from(new Set([...seenCtsvReplacements, ...waitingReplacementIds]));
           localStorage.setItem('seen_ctsv_assignments', JSON.stringify(seenCtsv));
+          localStorage.setItem('seen_ctsv_replacements', JSON.stringify(seenCtsvReplacements));
           setUnreadCtsvAssignments(false);
         } else {
-          const hasUnread = waitingIds.some((id) => !seenCtsv.includes(id));
-          setUnreadCtsvAssignments(hasUnread);
+          const hasUnreadAssignment = waitingAssignmentIds.some((id) => !seenCtsv.includes(id));
+          const hasUnreadReplacement = waitingReplacementIds.some((id) => !seenCtsvReplacements.includes(id));
+          setUnreadCtsvAssignments(hasUnreadAssignment || hasUnreadReplacement);
         }
 
         // 2. CTSV Notifications
@@ -117,12 +148,12 @@ export default function AppLayout({ title, children, navItems = [], activeNav, o
         const notifIds = notifications.map((n) => n.ma_thong_bao);
         let readNotifications = [];
         try {
-          readNotifications = JSON.parse(localStorage.getItem('read_notification_ids') || '[]');
+          readNotifications = JSON.parse(localStorage.getItem(notificationReadKey) || '[]');
         } catch {}
 
         if (isOnNotifications) {
           readNotifications = Array.from(new Set([...readNotifications, ...notifIds]));
-          localStorage.setItem('read_notification_ids', JSON.stringify(readNotifications));
+          localStorage.setItem(notificationReadKey, JSON.stringify(readNotifications));
           setUnreadNotifications(false);
         } else {
           const hasUnread = notifIds.some((id) => !readNotifications.includes(id));
@@ -135,12 +166,12 @@ export default function AppLayout({ title, children, navItems = [], activeNav, o
         const notifIds = notifications.map((n) => n.ma_thong_bao);
         let readNotifications = [];
         try {
-          readNotifications = JSON.parse(localStorage.getItem('read_notification_ids') || '[]');
+          readNotifications = JSON.parse(localStorage.getItem(notificationReadKey) || '[]');
         } catch {}
 
         if (isOnNotifications) {
           readNotifications = Array.from(new Set([...readNotifications, ...notifIds]));
-          localStorage.setItem('read_notification_ids', JSON.stringify(readNotifications));
+          localStorage.setItem(notificationReadKey, JSON.stringify(readNotifications));
           setUnreadNotifications(false);
         } else {
           const hasUnread = notifIds.some((id) => !readNotifications.includes(id));
@@ -199,77 +230,25 @@ export default function AppLayout({ title, children, navItems = [], activeNav, o
 
   return (
     <div className="app-shell ctsv-layout">
-      <style>{`
-        .app-shell {
-          display: block !important;
-        }
-        .sidebar {
-          position: fixed !important;
-          top: 0 !important;
-          bottom: 0 !important;
-          left: 0 !important;
-          width: 260px !important;
-          height: 100vh !important;
-          overflow-y: auto !important;
-          z-index: 1000 !important;
-        }
-        .content {
-          margin-left: 260px !important;
-          display: block !important;
-        }
-        @media (max-width: 900px) {
-          .sidebar {
-            position: static !important;
-            width: 100% !important;
-            height: auto !important;
-            overflow-y: visible !important;
-          }
-          .content {
-            margin-left: 0 !important;
-          }
-        }
-        .ctsv-bottom-menu {
-          margin-top: auto !important;
-          position: relative !important;
-          order: 9999 !important;
-        }
-        .ctsv-account-menu {
-          top: auto !important;
-          bottom: 100% !important;
-          margin-bottom: 8px !important;
-          margin-top: 0 !important;
-          box-shadow: 0 -4px 12px rgba(15, 23, 42, 0.12) !important;
-          left: 0 !important;
-          right: 0 !important;
-          width: 100% !important;
-          position: absolute !important;
-          background: #fff !important;
-          border: 1px solid #dbe3ef !important;
-          border-radius: 6px !important;
-          display: flex !important;
-          flex-direction: column !important;
-          z-index: 1010 !important;
-        }
-        .ctsv-layout .content {
-          position: relative !important;
-          background: linear-gradient(rgba(244, 247, 251, 0.94), rgba(244, 247, 251, 0.94)), url('/ptit-logo.png') no-repeat center center !important;
-          background-size: 320px !important;
-          background-attachment: fixed !important;
-        }
-        .sidebar-red-dot {
-          width: 8px !important;
-          height: 8px !important;
-          background-color: #ef4444 !important;
-          border-radius: 50% !important;
-          flex-shrink: 0 !important;
-        }
-      `}</style>
-      <aside className="sidebar">
-        <Link className="brand" to="/">Phân công cố vấn học tập</Link>
+      {mobileMenuOpen && (
+        <div className="sidebar-backdrop" onClick={() => setMobileMenuOpen(false)} />
+      )}
+      <aside className={`sidebar ${mobileMenuOpen ? 'open' : ''}`}>
+        <div className="sidebar-header-wrapper">
+          <Link className="brand" to="/" onClick={() => setMobileMenuOpen(false)}>Phân công CVHT</Link>
+          <button className="mobile-close-btn" onClick={() => setMobileMenuOpen(false)} aria-label="Close menu">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+          </button>
+        </div>
         <nav className="sidebar-action-nav">
           {currentNavItems.map((item) => (
             item.to ? (
-              <Link className={isNavActive(item) ? 'sidebar-nav-item active' : 'sidebar-nav-item'} key={item.key} to={item.to}>
+              <Link 
+                className={isNavActive(item) ? 'sidebar-nav-item active' : 'sidebar-nav-item'} 
+                key={item.key} 
+                to={item.to}
+                onClick={() => setMobileMenuOpen(false)}
+              >
                 <span style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '100%', justifyContent: 'space-between' }}>
                   {item.label}
                   {showRedDot(item.key) && <span className="sidebar-red-dot" />}
@@ -280,7 +259,10 @@ export default function AppLayout({ title, children, navItems = [], activeNav, o
                 className={isNavActive(item) ? 'sidebar-nav-item active' : 'sidebar-nav-item'}
                 key={item.key}
                 type="button"
-                onClick={() => onNavChange?.(item.key)}
+                onClick={() => {
+                  onNavChange?.(item.key);
+                  setMobileMenuOpen(false);
+                }}
               >
                 <span style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '100%', justifyContent: 'space-between' }}>
                   {item.label}
@@ -342,7 +324,20 @@ export default function AppLayout({ title, children, navItems = [], activeNav, o
       </aside>
       <main className="content">
         <header className="content-header">
-          <h1>{title}</h1>
+          <div className="header-title-row">
+            <button 
+              className="mobile-menu-btn" 
+              onClick={() => setMobileMenuOpen(true)}
+              aria-label="Mở menu"
+            >
+              <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="3" y1="12" x2="21" y2="12"></line>
+                <line x1="3" y1="6" x2="21" y2="6"></line>
+                <line x1="3" y1="18" x2="21" y2="18"></line>
+              </svg>
+            </button>
+            <h1>{title}</h1>
+          </div>
         </header>
         {children}
       </main>

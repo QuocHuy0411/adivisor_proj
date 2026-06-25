@@ -47,7 +47,7 @@ public class AuthenticationController {
         authenticationService.logout(CookieUtil.readCookie(request, "refreshToken"));
         CookieUtil.clearCookie(response, "accessToken", secureCookie);
         CookieUtil.clearCookie(response, "refreshToken", secureCookie);
-        return Map.of("message", "Dang xuat thanh cong");
+        return Map.of("message", "Đăng xuất thành công");
     }
 
     @PostMapping("/refresh-token")
@@ -67,7 +67,7 @@ public class AuthenticationController {
     public Map<String, String> changePassword(HttpServletRequest request,
                                                @Valid @RequestBody ChangePasswordRequest payload) {
         authenticationService.changePassword(CookieUtil.readCookie(request, "accessToken"), payload);
-        return Map.of("message", "Doi mat khau thanh cong");
+        return Map.of("message", "Đổi mật khẩu thành công");
     }
 
     // ==================== Password recovery / OTP routes ====================

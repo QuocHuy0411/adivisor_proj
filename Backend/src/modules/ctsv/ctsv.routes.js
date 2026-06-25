@@ -35,16 +35,16 @@ router.delete('/classes/:id', asyncHandler(async (req, res) => res.json(await se
 router.get('/assignments', asyncHandler(async (req, res) => res.json(await service.listAssignments())));
 router.post('/assignments', asyncHandler(async (req, res) => res.status(201).json(await service.createAssignmentRequest(req.body))));
 router.post('/assignments/approve-all', asyncHandler(async (req, res) => res.json(await service.approveAllAssignments(req.user))));
-router.post('/assignments/reject-all', asyncHandler(async (req, res) => res.json(await service.rejectAllAssignments())));
+router.post('/assignments/reject-all', asyncHandler(async (req, res) => res.json(await service.rejectAllAssignments(req.user))));
 router.post('/assignments/:id/send', asyncHandler(async (req, res) => res.json(await service.sendAssignmentToFaculty(req.params.id))));
 router.post('/assignments/:id/approve', asyncHandler(async (req, res) => res.json(await service.approveAssignment(req.user, req.params.id))));
-router.post('/assignments/:id/reject', asyncHandler(async (req, res) => res.json(await service.rejectAssignment(req.params.id))));
+router.post('/assignments/:id/reject', asyncHandler(async (req, res) => res.json(await service.rejectAssignment(req.user, req.params.id))));
 
 router.get('/replacement-requests', asyncHandler(async (req, res) => res.json(await service.listReplacementRequests())));
 router.post('/replacement-requests/approve-all', asyncHandler(async (req, res) => res.json(await service.approveAllReplacements(req.user))));
-router.post('/replacement-requests/reject-all', asyncHandler(async (req, res) => res.json(await service.rejectAllReplacements())));
-router.post('/replacement-requests/:id/start-step-2', asyncHandler(async (req, res) => res.json(await service.startReplacementStep2(req.params.id))));
+router.post('/replacement-requests/reject-all', asyncHandler(async (req, res) => res.json(await service.rejectAllReplacements(req.user))));
+
 router.post('/replacement-requests/:id/approve', asyncHandler(async (req, res) => res.json(await service.approveReplacement(req.user, req.params.id))));
-router.post('/replacement-requests/:id/reject', asyncHandler(async (req, res) => res.json(await service.rejectReplacement(req.params.id))));
+router.post('/replacement-requests/:id/reject', asyncHandler(async (req, res) => res.json(await service.rejectReplacement(req.user, req.params.id))));
 
 export default router;

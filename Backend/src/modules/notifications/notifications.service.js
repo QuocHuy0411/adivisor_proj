@@ -2,9 +2,15 @@ import { query, transaction } from '../../config/db.js';
 import { badRequest } from '../../utils/httpError.js';
 import { makeId } from '../../utils/ids.js';
 
+// Xac dinh pham vi thong bao theo role de moi nguoi chi thay thong bao gui dung doi tuong cua minh.
 function recipientClauseForUser(user) {
   if (user.loai_tai_khoan === 'admin') return { clause: '1 = 1', params: {} };
-  if (user.loai_tai_khoan === 'ctsv') return { clause: '1 = 1', params: {} };
+  if (user.loai_tai_khoan === 'ctsv') {
+    return {
+      clause: "(nn.loai_nguoi_nhan = 'ctsv' AND nn.ma_doi_tuong = 'ALL')",
+      params: {}
+    };
+  }
   if (user.loai_tai_khoan === 'khoa') {
     return {
       clause: "(nn.loai_nguoi_nhan = 'khoa' AND nn.ma_doi_tuong = :ma_khoa)",
@@ -23,6 +29,7 @@ function recipientClauseForUser(user) {
   };
 }
 
+// Lay danh sach thong bao theo scope cua role hien tai, sap xep thong bao moi len tren.
 export async function listNotifications(user) {
   const scope = recipientClauseForUser(user);
   return query(
@@ -35,6 +42,7 @@ export async function listNotifications(user) {
   );
 }
 
+// CTSV tao thong bao thu cong cho cac nhom nhan; thong bao tu dong cua luong nghiep vu tao o service rieng.
 export async function createNotification(user, payload) {
   if (user.loai_tai_khoan !== 'ctsv') throw badRequest('Chỉ Phòng Công tác Sinh viên được gửi thông báo thủ công');
   if (!payload.tieu_de || !payload.noi_dung || !Array.isArray(payload.recipients)) {

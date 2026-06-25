@@ -10,6 +10,7 @@ export default function ChangePasswordPage() {
 
   if (!user) return <Navigate to="/login" replace />;
 
+  // Doi mat khau bat buoc lan dau; backend cap nhat da_doi_mk roi cho vao he thong chinh.
   async function submit(event) {
     event.preventDefault();
     setError('');

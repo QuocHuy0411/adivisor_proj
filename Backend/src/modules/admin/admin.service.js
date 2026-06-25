@@ -4,6 +4,7 @@ import { makeId } from '../../utils/ids.js';
 import { defaultPasswordForRole, hashPassword } from '../../utils/passwords.js';
 import { parseCsv } from '../../utils/csv.js';
 
+// Tao tai khoan nhan su voi mat khau mac dinh va da_doi_mk=false de bat doi mat khau lan dau.
 async function createAccount(connection, { ten_tai_khoan, email, role, defaultPassword, ma_tai_khoan }) {
   const password = await hashPassword(defaultPassword);
   const accountId = ma_tai_khoan || makeId('TK');
@@ -16,7 +17,7 @@ async function createAccount(connection, { ten_tai_khoan, email, role, defaultPa
     );
   } catch (error) {
     if (error.code === 'ER_DUP_ENTRY') {
-      throw badRequest(`Ten tai khoan hoac email da ton tai: ${ten_tai_khoan}, ${email}`);
+      throw badRequest(`Tên tài khoản hoặc email đã tồn tại: ${ten_tai_khoan}, ${email}`);
     }
     throw error;
   }
@@ -31,6 +32,7 @@ function valueOf(row, keys) {
   return '';
 }
 
+// Chuan hoa uu_tien CVHT ve mien 1-3; gia tri nay duoc Khoa dung khi auto-assign.
 function normalizePriority(input) {
   const value = input === undefined || input === null || String(input).trim() === '' ? 2 : Number(input);
   if (!Number.isInteger(value) || value < 1 || value > 3) {
@@ -39,6 +41,7 @@ function normalizePriority(input) {
   return value;
 }
 
+// Kiem tra trung ten dang nhap/email truoc khi import de loi CSV dung o dong gay xung dot.
 async function assertAccountAvailable(connection, { ten_tai_khoan, email }) {
   const [rows] = await connection.execute(
     `SELECT ten_tai_khoan, email, loai_tai_khoan
@@ -82,19 +85,44 @@ export async function listFaculties() {
   return query('SELECT ma_khoa, ten_khoa FROM KHOA ORDER BY ten_khoa');
 }
 
+// Gom nhan vien theo don vi cho dashboard Admin, kem tong so nhan vien va so CVHT cua tung khoa.
 export async function listEmployeeGroups() {
   const faculties = await query(
-    `SELECT ma_khoa AS ma_don_vi,
-            ten_khoa AS ten_don_vi
-     FROM KHOA
-     ORDER BY ten_khoa`
+    `SELECT k.ma_khoa AS ma_don_vi,
+            k.ten_khoa AS ten_don_vi,
+            (
+              SELECT COUNT(*)
+              FROM TRUONG_KHOA tk
+              WHERE tk.ma_khoa = k.ma_khoa
+            ) + (
+              SELECT COUNT(*)
+              FROM CVHT cv
+              WHERE cv.ma_khoa = k.ma_khoa
+            ) AS so_luong_nhan_vien,
+            (
+              SELECT COUNT(*)
+              FROM CVHT cv
+              WHERE cv.ma_khoa = k.ma_khoa
+            ) AS so_luong_co_van
+     FROM KHOA k
+     ORDER BY k.ten_khoa`
+  );
+  const ctsvRows = await query(
+    `SELECT COUNT(*) AS so_luong_nhan_vien
+     FROM NHAN_VIEN_CTSV`
   );
   return [
     ...faculties,
-    { ma_don_vi: 'CTSV', ten_don_vi: 'Cong tac sinh vien' }
+    {
+      ma_don_vi: 'CTSV',
+      ten_don_vi: 'Công tác sinh viên',
+      so_luong_nhan_vien: Number(ctsvRows[0]?.so_luong_nhan_vien || 0),
+      so_luong_co_van: 0
+    }
   ];
 }
 
+// Lay danh sach tai khoan nhan vien trong mot don vi; CTSV va tung Khoa co cau truc role khac nhau.
 export async function listEmployeeGroupAccounts(ma_don_vi) {
   if (ma_don_vi === 'CTSV') {
     return query(
@@ -105,7 +133,7 @@ export async function listEmployeeGroupAccounts(ma_don_vi) {
               acc.email,
               acc.ten_tai_khoan,
               acc.loai_tai_khoan,
-              'Nhan vien CTSV' AS vai_tro,
+              'Nhân viên CTSV' AS vai_tro,
               acc.is_active,
               acc.ma_tai_khoan
        FROM NHAN_VIEN_CTSV nv
@@ -124,7 +152,7 @@ export async function listEmployeeGroupAccounts(ma_don_vi) {
               acc.email,
               acc.ten_tai_khoan,
               acc.loai_tai_khoan,
-              'Truong Khoa' AS vai_tro,
+              'Trưởng Khoa' AS vai_tro,
               acc.is_active,
               acc.ma_tai_khoan
        FROM TRUONG_KHOA tk
@@ -138,7 +166,7 @@ export async function listEmployeeGroupAccounts(ma_don_vi) {
               acc.email,
               acc.ten_tai_khoan,
               acc.loai_tai_khoan,
-              'Co van hoc tap' AS vai_tro,
+              'Cố vấn học tập' AS vai_tro,
               acc.is_active,
               acc.ma_tai_khoan
        FROM CVHT cv
@@ -156,6 +184,7 @@ export async function listEmployeeGroupAccounts(ma_don_vi) {
   );
 }
 
+// Lay thong tin CVHT de Admin quan ly rieng ho so co van, doc lap voi bang tai khoan nhan vien.
 export async function listAdvisorInfo(ma_khoa) {
   const filter = ma_khoa ? 'WHERE cv.ma_khoa = :ma_khoa' : '';
   return query(
@@ -176,6 +205,7 @@ export async function listAdvisorInfo(ma_khoa) {
   );
 }
 
+// Cap nhat tai khoan nhan vien CTSV/Truong Khoa, khong cho sua Admin va CVHT o man hinh nay.
 export async function updateEmployeeAccount(ma_tai_khoan, payload) {
   const rows = await query('SELECT * FROM TAI_KHOAN WHERE ma_tai_khoan = :ma_tai_khoan', { ma_tai_khoan });
   const account = rows[0];
@@ -205,6 +235,7 @@ export async function updateEmployeeAccount(ma_tai_khoan, payload) {
   return { message: 'Cập nhật tài khoản nhân viên thành công' };
 }
 
+// Xoa tai khoan nhan vien va ban ghi role tuong ung, co chan tu xoa tai khoan dang dang nhap.
 export async function deleteEmployeeAccount(currentUser, ma_tai_khoan) {
   const rows = await query('SELECT * FROM TAI_KHOAN WHERE ma_tai_khoan = :ma_tai_khoan', { ma_tai_khoan });
   const account = rows[0];
@@ -232,6 +263,7 @@ export async function deleteEmployeeAccount(currentUser, ma_tai_khoan) {
   return { message: 'Xóa tài khoản nhân viên thành công' };
 }
 
+// Cap nhat ho so CVHT: thong tin khoa, chuyen nganh va lien he phuc vu phan cong co van.
 export async function updateAdvisorInfo(ma_co_van, payload) {
   const rows = await query('SELECT * FROM CVHT WHERE ma_co_van = :ma_co_van', { ma_co_van });
   if (!rows[0]) throw notFound('Không tìm thấy thông tin cố vấn học tập');
@@ -262,6 +294,7 @@ export async function updateAdvisorInfo(ma_co_van, payload) {
   return { message: 'Cập nhật thông tin cố vấn học tập thành công' };
 }
 
+// Xoa ho so CVHT va tai khoan lien quan, dong thoi go tham chieu khoi lop/phan cong de tranh khoa ngoai.
 export async function deleteAdvisorInfo(ma_co_van) {
   const rows = await query('SELECT * FROM CVHT WHERE ma_co_van = :ma_co_van', { ma_co_van });
   const advisor = rows[0];
@@ -281,6 +314,7 @@ export async function deleteAdvisorInfo(ma_co_van) {
   return { message: 'Xóa thông tin cố vấn học tập và tài khoản tương ứng thành công' };
 }
 
+// Liet ke Truong Khoa va CVHT cua mot khoa de Admin xem toan bo nhan su trong khoa do.
 export async function listFacultyEmployees(ma_khoa) {
   return query(
     `SELECT tk.ma_khoa,
@@ -289,7 +323,7 @@ export async function listFacultyEmployees(ma_khoa) {
             NULL AS chuyen_nganh,
             acc.email,
             acc.ten_tai_khoan,
-            'Truong Khoa' AS vai_tro,
+            'Trưởng Khoa' AS vai_tro,
             acc.is_active,
             acc.ma_tai_khoan
      FROM TRUONG_KHOA tk
@@ -302,7 +336,7 @@ export async function listFacultyEmployees(ma_khoa) {
             cv.chuyen_nganh,
             acc.email,
             acc.ten_tai_khoan,
-            'Co van hoc tap' AS vai_tro,
+            'Cố vấn học tập' AS vai_tro,
             COALESCE(acc.is_active, false) AS is_active,
             acc.ma_tai_khoan
      FROM CVHT cv
@@ -313,6 +347,7 @@ export async function listFacultyEmployees(ma_khoa) {
   );
 }
 
+// Import tai khoan Truong Khoa tu CSV: map ten khoa day du, tao TAI_KHOAN va TRUONG_KHOA trong transaction.
 export async function importFacultyHeadAccounts(file) {
   if (!file) throw badRequest('Vui lòng tải lên file CSV');
   const records = parseCsv(file.buffer);
@@ -358,6 +393,7 @@ export async function importFacultyHeadAccounts(file) {
   return { message: 'Import tài khoản Trưởng Khoa thành công', created };
 }
 
+// Import tai khoan nhan vien CTSV tu CSV voi mat khau mac dinh cua role CTSV.
 export async function importCtsvAccounts(file) {
   if (!file) throw badRequest('Vui lòng tải lên file CSV');
   const records = parseCsv(file.buffer);
@@ -401,7 +437,8 @@ export async function importCtsvAccounts(file) {
   return { message: 'Import tài khoản nhân viên CTSV thành công', created };
 }
 
-export async function createAdvisorInfo(payload) {
+// Tao rieng ho so CVHT khi chua can tai khoan dang nhap; tai khoan co the import o buoc sau.
+async function createAdvisorInfo(payload) {
   const required = ['ma_co_van', 'ho_va_ten', 'so_dien_thoai', 'ten_khoa', 'chuyen_nganh'];
   for (const field of required) {
     if (!payload[field]) throw badRequest(`Thiếu trường ${field}`);
@@ -428,6 +465,7 @@ export async function createAdvisorInfo(payload) {
   return { message: 'Tạo thông tin cố vấn học tập thành công' };
 }
 
+// Import danh sach ho so CVHT tu CSV, gom ma nhan vien, khoa, chuyen nganh va uu_tien.
 export async function importAdvisorInfo(file) {
   if (!file) throw badRequest('Vui lòng tải lên file CSV');
   const records = parseCsv(file.buffer);
@@ -448,6 +486,7 @@ export async function importAdvisorInfo(file) {
   return { message: 'Import thông tin cố vấn học tập thành công', created };
 }
 
+// Import tai khoan cho cac CVHT da co ho so, gan ma_tai_khoan nguoc lai vao bang CVHT.
 export async function importAdvisorAccounts(file) {
   if (!file) throw badRequest('Vui lòng tải lên file CSV');
   const records = parseCsv(file.buffer);
@@ -479,6 +518,7 @@ export async function importAdvisorAccounts(file) {
   return { message: 'Import tài khoản cố vấn học tập thành công', created };
 }
 
+// Import gop ho so va tai khoan CVHT trong mot file CSV de Admin tao du lieu CVHT nhanh va dong bo.
 export async function importAdvisorInfoAndAccounts(file) {
   if (!file) throw badRequest('Vui lòng tải lên file CSV');
   const records = parseCsv(file.buffer);
@@ -538,6 +578,7 @@ export async function importAdvisorInfoAndAccounts(file) {
   return { message: 'Import thông tin và tài khoản cố vấn học tập thành công', created };
 }
 
+// Khoa/mo khoa tai khoan nhan su; khong cho khoa Admin hoac tai khoan dang su dung.
 export async function updateAccountStatus(currentUser, ma_tai_khoan, is_active) {
   const rows = await query(
     'SELECT loai_tai_khoan FROM TAI_KHOAN WHERE ma_tai_khoan = :ma_tai_khoan',
@@ -555,6 +596,7 @@ export async function updateAccountStatus(currentUser, ma_tai_khoan, is_active) 
   return { message: 'Cập nhật trạng thái tài khoản thành công' };
 }
 
+// Danh sach tat ca tai khoan de Admin doi chieu trang thai kich hoat va da doi mat khau.
 export async function listAccounts() {
   return query(
     `SELECT ma_tai_khoan, ten_tai_khoan, email, loai_tai_khoan, da_doi_mk, is_active

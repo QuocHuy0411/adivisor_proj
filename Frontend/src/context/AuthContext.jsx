@@ -11,6 +11,7 @@ export function AuthProvider({ children }) {
   // Bắt đầu với loading = true để chờ xác thực token từ cookie
   const [loading, setLoading] = useState(true);
 
+  // Dang nhap va luu user hien tai de cac route biet role, da_doi_mk va thong tin profile.
   async function login(credentials) {
     const { data } = await api.post('/auth/login', credentials);
     localStorage.setItem('user', JSON.stringify(data));
@@ -22,11 +23,12 @@ export function AuthProvider({ children }) {
     const { data } = await api.get('/auth/google/login');
     const googleUrl = data.url || data.result;
     if (!googleUrl) {
-      throw new Error('Khong lay duoc duong dan dang nhap Google');
+      throw new Error('Không lấy được đường dẫn đăng nhập Google');
     }
     window.location.assign(googleUrl);
   }
 
+  // Goi /auth/me de lam moi session sau khi refresh token hoac sau khi doi mat khau.
   async function refreshMe() {
     const { data } = await api.get('/auth/me');
     localStorage.setItem('user', JSON.stringify(data));
@@ -34,11 +36,13 @@ export function AuthProvider({ children }) {
     return data;
   }
 
+  // Doi mat khau tu giao dien; backend se cap nhat da_doi_mk de mo khoa cac man hinh chinh.
   async function changePassword(payload) {
     await api.post('/auth/change-password', payload);
     await refreshMe();
   }
 
+  // Dang xuat ca client va server: thu hoi refresh token, sau do xoa user local.
   async function logout() {
     try {
       await api.post('/auth/logout');

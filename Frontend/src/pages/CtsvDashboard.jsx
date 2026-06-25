@@ -4,6 +4,7 @@ import { api } from '../api/client.js';
 import AppLayout from '../components/AppLayout.jsx';
 import DataTable from '../components/DataTable.jsx';
 import Toast from '../components/Toast.jsx';
+import ExpandableText from '../components/ExpandableText.jsx';
 
 const sectionTitle = {
   create: 'Tạo lớp và sinh viên',
@@ -13,11 +14,22 @@ const sectionTitle = {
 };
 
 const NO_ADVISOR = 'Chưa có cố vấn';
+const EMPTY_CLASS = 'Lớp trống';
 const CLOSED = 'Đã đóng';
+const HAS_ADVISOR = 'Đã có cố vấn';
+const LEGACY_HAS_CVHT = 'Đã có CVHT';
 const WAITING = 'Chờ phân công';
 const ASSIGNED = 'Đã phân công';
 const DIRECTOR_WAITING = 'Chờ giám đốc duyệt';
 const REJECTED = 'Bị từ chối';
+const FACULTY_APPROVED_REPLACEMENT = 'Khoa đã duyệt';
+const DIRECTOR_REVIEWING_REPLACEMENT = 'Giám đốc đang duyệt';
+const DIRECTOR_APPROVED_REPLACEMENT = 'Giám đốc đã duyệt';
+const REVIEWABLE_REPLACEMENT_STATUSES = [FACULTY_APPROVED_REPLACEMENT, DIRECTOR_REVIEWING_REPLACEMENT];
+const REPLACEMENT_HISTORY_STATUSES = [
+  DIRECTOR_APPROVED_REPLACEMENT,
+  CLOSED
+];
 
 const SearchIcon = () => (
   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -68,6 +80,13 @@ function ToastSlot({ message, error, clear }) {
   return <Toast message={error || message} type={error ? 'error' : 'success'} onClose={clear} />;
 }
 
+function replacementStatusLabel(status) {
+  return [FACULTY_APPROVED_REPLACEMENT, DIRECTOR_REVIEWING_REPLACEMENT].includes(status)
+    ? DIRECTOR_REVIEWING_REPLACEMENT
+    : status;
+}
+
+// Form import CSV dung chung cho CTSV tao lop va sinh vien hang loat.
 function CsvImportPanel({ title, hint, endpoint, onDone, onError }) {
   const [file, setFile] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -100,6 +119,7 @@ function CsvImportPanel({ title, hint, endpoint, onDone, onError }) {
   );
 }
 
+// Modal sua lop; backend chi cho sua khi lop chua co sinh vien de tranh sai lech du lieu.
 function ClassEditForm({ classRow, onCancel, onSave }) {
   const [form, setForm] = useState({
     ten_lop: classRow.ten_lop || '',
@@ -140,6 +160,7 @@ function ClassEditForm({ classRow, onCancel, onSave }) {
   );
 }
 
+// Modal sua sinh vien, bao gom chuyen lop de backend can lai si so hai lop.
 function StudentEditForm({ student, classes, onCancel, onSave }) {
   const [form, setForm] = useState({
     ho_va_ten: student.ho_va_ten || '',
@@ -184,14 +205,24 @@ function classRank(value) {
   return match ? Number(match[1]) : 0;
 }
 
-function downloadTable(rows, columns, fileName, type) {
+function isClosedAdvisorClass(row) {
+  return Boolean(row.ma_co_van) && [CLOSED, HAS_ADVISOR, LEGACY_HAS_CVHT].includes(row.trang_thai_lop);
+}
+
+// Xuat bang dang xem ra CSV hoac XLSX; CSV giu nguyen, XLSX tao workbook that.
+async function downloadTable(rows, columns, fileName, type) {
   const escapeCell = (value) => `"${String(value ?? '').replaceAll('"', '""')}"`;
-  if (type === 'xls') {
-    const html = `<table><thead><tr>${columns.map((column) => `<th>${column.label}</th>`).join('')}</tr></thead><tbody>${rows.map((row) => (
-      `<tr>${columns.map((column) => `<td>${column.value(row) ?? ''}</td>`).join('')}</tr>`
-    )).join('')}</tbody></table>`;
-    const blob = new Blob([html], { type: 'application/vnd.ms-excel;charset=utf-8;' });
-    triggerDownload(blob, `${fileName}.xls`);
+  if (type === 'xlsx') {
+    const XLSX = await import('xlsx');
+    const worksheetRows = [
+      columns.map((column) => column.label),
+      ...rows.map((row) => columns.map((column) => column.value(row) ?? ''))
+    ];
+    const worksheet = XLSX.utils.aoa_to_sheet(worksheetRows);
+    worksheet['!cols'] = columns.map((column) => ({ wch: Math.max(14, String(column.label).length + 4) }));
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Data');
+    XLSX.writeFile(workbook, `${fileName}.xlsx`);
     return;
   }
   const csv = [
@@ -237,6 +268,7 @@ export default function CtsvDashboard() {
   const showMessage = (nextMessage) => { setMessage(nextMessage); setError(''); };
   const showError = (nextError) => { setError(nextError); setMessage(''); };
 
+  // Nap du lieu CTSV: lop, sinh vien, phan cong va yeu cau thay the de cac bang cung dong bo.
   async function load() {
     const [classGroupRes, classRes, studentRes, assignmentRes, requestRes] = await Promise.all([
       api.get('/ctsv/class-groups'),
@@ -312,14 +344,17 @@ export default function CtsvDashboard() {
     }
     return [...map.values()].map((group) => {
       const currentAssignments = group.assignments.filter((row) => [WAITING, ASSIGNED, DIRECTOR_WAITING, REJECTED].includes(row.trang_thai));
-      const closedClassCount = group.classes.filter((row) => row.ma_co_van && row.trang_thai_lop === CLOSED).length;
+      const nonEmptyClasses = group.classes.filter((row) => row.hasStudents);
+      const closedClassCount = nonEmptyClasses.filter((row) => isClosedAdvisorClass(row)).length;
       const directorWaitingCount = currentAssignments.filter((row) => row.trang_thai === DIRECTOR_WAITING).length;
-      const waitingCount = group.classes.filter((row) => [WAITING, NO_ADVISOR].includes(row.trang_thai_lop)).length
-        + currentAssignments.filter((row) => [WAITING, ASSIGNED, REJECTED].includes(row.trang_thai)).length;
-      let trangThai = group.so_lop ? WAITING : 'Chưa có lớp';
-      if (group.so_lop > 0 && closedClassCount >= group.so_lop) trangThai = CLOSED;
+      const waitingCount = currentAssignments.filter((row) => [WAITING, ASSIGNED, REJECTED].includes(row.trang_thai)).length;
+      const noAdvisorCount = nonEmptyClasses.filter((row) => row.trang_thai_lop === NO_ADVISOR).length;
+      let trangThai = group.so_lop ? NO_ADVISOR : 'Chưa có lớp';
+      if (group.so_lop > 0 && nonEmptyClasses.length === 0) trangThai = 'Không có sinh viên';
+      else if (nonEmptyClasses.length > 0 && closedClassCount >= nonEmptyClasses.length) trangThai = CLOSED;
       else if (directorWaitingCount > 0 && waitingCount === 0) trangThai = DIRECTOR_WAITING;
       else if (waitingCount > 0) trangThai = WAITING;
+      else if (noAdvisorCount > 0) trangThai = NO_ADVISOR;
       return { ...group, trang_thai: trangThai };
     }).sort((a, b) => a.ma_khoa.localeCompare(b.ma_khoa));
   }, [assignments, classById, classGroups, classRows]);
@@ -336,23 +371,28 @@ export default function CtsvDashboard() {
           ? classAssignments.find((row) => row.trang_thai === CLOSED)
           : null;
         const assignment = currentAssignment || closedAssignment;
+        const isEmpty = !classRow.hasStudents;
         return {
           ...classRow,
           ...(assignment || {}),
           id: assignment?.ma_phan_cong || classRow.ma_lop,
-          ma_phan_cong: assignment?.ma_phan_cong || '-',
+          ma_phan_cong: isEmpty ? '-' : (assignment?.ma_phan_cong || '-'),
           ten_lop: assignment?.ten_lop || classRow.ten_lop,
           ten_khoa: assignment?.ten_khoa || classRow.ten_khoa,
-          ten_co_van: assignment?.ten_co_van || classRow.ten_co_van || '',
-          trang_thai: assignment?.trang_thai || classRow.trang_thai_lop || NO_ADVISOR
+          ten_co_van: isEmpty ? '' : (assignment?.ten_co_van || classRow.ten_co_van || ''),
+          trang_thai: isEmpty ? EMPTY_CLASS : (assignment?.trang_thai || classRow.trang_thai_lop || NO_ADVISOR)
         };
       })
     : [];
-  const canResetAssignments = classRows.length > 0
-    && classRows.every((row) => row.ma_co_van && row.trang_thai_lop === CLOSED)
-    && assignments.every((row) => row.trang_thai === CLOSED);
+  const nonEmptyClassRows = classRows.filter((row) => row.hasStudents);
+  const allNonEmptyClassesClosed = nonEmptyClassRows.length > 0
+    && nonEmptyClassRows.every((row) => isClosedAdvisorClass(row));
+  const canResetAssignments = nonEmptyClassRows.length > 0
+    && allNonEmptyClassesClosed
+    && assignments.every((row) => row.trang_thai === CLOSED || !classById[row.ma_lop]?.hasStudents);
   const hasDirectorWaitingAssignments = assignments.some((row) => row.trang_thai === DIRECTOR_WAITING);
-  const pendingRequests = requests.filter((row) => ![CLOSED, REJECTED].includes(row.trang_thai));
+  const pendingRequests = requests.filter((row) => REVIEWABLE_REPLACEMENT_STATUSES.includes(row.trang_thai));
+  const hasReplacementRequestsForReview = requests.some((row) => REVIEWABLE_REPLACEMENT_STATUSES.includes(row.trang_thai));
 
   const assignmentHistory = assignments
     .filter((row) => row.trang_thai === CLOSED)
@@ -363,7 +403,7 @@ export default function CtsvDashboard() {
       || String(b.ten_lop || '').localeCompare(String(a.ten_lop || '')));
 
   const replacementHistory = requests
-    .filter((row) => row.trang_thai === CLOSED)
+    .filter((row) => REPLACEMENT_HISTORY_STATUSES.includes(row.trang_thai))
     .sort((a, b) => yearRank(b.nam_hoc) - yearRank(a.nam_hoc)
       || String(b.ten_khoa || '').localeCompare(String(a.ten_khoa || ''))
       || classRank(b.ten_lop) - classRank(a.ten_lop)
@@ -379,6 +419,7 @@ export default function CtsvDashboard() {
     }
   }
 
+  // CTSV luu thay doi lop dang chon.
   async function saveClass(payload) {
     await safeAction(async () => {
       const { data } = await api.patch(`/ctsv/classes/${editingClass.ma_lop}`, payload);
@@ -387,6 +428,7 @@ export default function CtsvDashboard() {
     }, 'Không cập nhật được lớp');
   }
 
+  // CTSV xoa lop sau xac nhan; backend se chan neu lop con sinh vien.
   async function deleteClass(row) {
     if (!window.confirm(`Xóa lớp ${row.ten_lop}?`)) return;
     await safeAction(async () => {
@@ -395,6 +437,7 @@ export default function CtsvDashboard() {
     }, 'Không xóa được lớp');
   }
 
+  // CTSV luu thong tin sinh vien dang sua, gom email va lop hien tai.
   async function saveStudent(payload) {
     await safeAction(async () => {
       const { data } = await api.patch(`/ctsv/students/${editingStudent.ma_sinh_vien}`, payload);
@@ -403,6 +446,7 @@ export default function CtsvDashboard() {
     }, 'Không cập nhật được sinh viên');
   }
 
+  // CTSV xoa sinh vien va tai khoan tuong ung sau xac nhan.
   async function deleteStudent(row) {
     if (!window.confirm(`Xóa sinh viên ${row.ho_va_ten}?`)) return;
     await safeAction(async () => {
@@ -411,6 +455,7 @@ export default function CtsvDashboard() {
     }, 'Không xóa được sinh viên');
   }
 
+  // Khoa/mo khoa tai khoan sinh vien nhung van giu ho so sinh vien trong lop.
   async function toggleStudentAccount(row) {
     await safeAction(async () => {
       const { data } = await api.patch(`/ctsv/students/${row.ma_sinh_vien}/account-status`, { is_active: !row.is_active });
@@ -418,6 +463,7 @@ export default function CtsvDashboard() {
     }, 'Không cập nhật được trạng thái tài khoản sinh viên');
   }
 
+  // Xoa toan bo sinh vien cua mot lop va dua lop ve trang thai trong.
   async function deleteAllStudents(row) {
     if (!window.confirm(`Xóa tất cả sinh viên của lớp ${row.ten_lop}?`)) return;
     await safeAction(async () => {
@@ -427,6 +473,7 @@ export default function CtsvDashboard() {
     }, 'Không xóa được danh sách sinh viên của lớp');
   }
 
+  // Goi mot hanh dong duyet/tu choi phan cong don le.
   async function assignmentAction(url) {
     await safeAction(async () => {
       const { data } = await api.post(url);
@@ -434,6 +481,7 @@ export default function CtsvDashboard() {
     });
   }
 
+  // Goi hanh dong hang loat cho phan cong va khoa nut trong luc cho backend xu ly.
   async function assignmentBulkAction(url, busyKey) {
     setAssignmentActionBusy(busyKey);
     await safeAction(async () => {
@@ -443,6 +491,27 @@ export default function CtsvDashboard() {
     setAssignmentActionBusy('');
   }
 
+  // Lam moi chu ky phan cong khi tat ca lop da dong va khong con yeu cau dang xu ly.
+  async function resetAssignments() {
+    setAssignmentActionBusy('reset');
+    await safeAction(async () => {
+      const { data } = await api.post('/ctsv/classes/reset-advisors');
+      return data;
+    });
+    setAssignmentActionBusy('');
+  }
+
+  // Gui danh sach lop chua co CVHT sang cac Khoa; backend chi tao request moi neu chua co request active.
+  async function sendAssignmentRequests() {
+    setAssignmentActionBusy('send');
+    await safeAction(async () => {
+      const { data } = await api.post('/ctsv/classes/send-to-faculties');
+      return data;
+    });
+    setAssignmentActionBusy('');
+  }
+
+  // Goi hanh dong hang loat cho yeu cau thay the o buoc CTSV/Giam doc.
   async function replacementBulkAction(url, busyKey) {
     setReplacementActionBusy(busyKey);
     await safeAction(async () => {
@@ -452,10 +521,11 @@ export default function CtsvDashboard() {
     setReplacementActionBusy('');
   }
 
-  function exportAssignments() {
+  // Xuat danh sach phan cong dang cho Giam doc duyet hoac lich su da dong ra file.
+  async function exportAssignments() {
     const directorRows = assignments.filter((row) => row.trang_thai === DIRECTOR_WAITING);
-    const allClosed = classRows.length > 0
-      && classRows.every((row) => row.ma_co_van && row.trang_thai_lop === CLOSED);
+    const allClosed = nonEmptyClassRows.length > 0
+      && nonEmptyClassRows.every((row) => isClosedAdvisorClass(row));
     if (!directorRows.length && !allClosed) {
       showError('Chỉ xuất được danh sách chờ giám đốc duyệt hoặc kết quả khi tất cả lớp đã đóng');
       return;
@@ -467,9 +537,9 @@ export default function CtsvDashboard() {
       ...row,
       ten_khoa: row.ten_khoa || classById[row.ma_lop]?.ten_khoa || row.ma_khoa
     }));
-    downloadTable(rows, [
+    await downloadTable(rows, [
       { label: 'Mã phân công', value: (row) => row.ma_phan_cong },
-      { label: 'Lớp', value: (row) => row.ten_lop },
+      { label: 'Mã lớp', value: (row) => row.ma_lop },
       { label: 'Khoa', value: (row) => row.ten_khoa },
       { label: 'Cố vấn học tập', value: (row) => row.ten_co_van || '' },
       { label: 'Năm học', value: (row) => row.nam_hoc },
@@ -477,15 +547,17 @@ export default function CtsvDashboard() {
     ], directorRows.length ? 'phan-cong-cho-giam-doc-duyet' : 'ket-qua-phan-cong', assignmentExportType);
   }
 
-  function exportReplacements() {
+  // Xuat cac yeu cau thay the dang cho CTSV/Giam doc duyet ra file.
+  async function exportReplacements() {
     const rows = pendingRequests;
-    downloadTable(rows, [
+    await downloadTable(rows, [
       { label: 'Mã yêu cầu', value: (row) => row.ma_yeu_cau },
-      { label: 'Lớp', value: (row) => row.ten_lop },
+      { label: 'Mã lớp', value: (row) => row.ma_lop },
       { label: 'Khoa', value: (row) => row.ten_khoa },
       { label: 'Cố vấn cũ', value: (row) => row.ten_co_van_cu || '' },
       { label: 'Cố vấn mới', value: (row) => row.ten_co_van_moi || '' },
-      { label: 'Trạng thái', value: (row) => row.trang_thai }
+      { label: 'Lý do dừng', value: (row) => row.ly_do || '' },
+      { label: 'Trạng thái', value: (row) => replacementStatusLabel(row.trang_thai) }
     ], 'danh-sach-yeu-cau-thay-the', replacementExportType);
   }
 
@@ -516,11 +588,10 @@ export default function CtsvDashboard() {
         <section className="panel">
           <h2>Tài khoản và thông tin sinh viên</h2>
           <DataTable pageSize={10} columns={[
-            { key: 'ma_lop', label: 'Mã lớp' },
-            { key: 'ten_lop', label: 'Tên lớp' },
-            { key: 'ten_khoa', label: 'Tên khoa' },
-            { key: 'chuyen_nganh', label: 'Chuyên ngành' },
-            { key: 'si_so', label: 'Sỉ số' }
+            { key: 'ma_lop', label: 'Mã lớp', width: '16%' },
+            { key: 'ten_khoa', label: 'Tên khoa', width: '28%' },
+            { key: 'chuyen_nganh', label: 'Chuyên ngành', width: '38%', minWidth: '220px' },
+            { key: 'si_so', label: 'Sỉ số', width: '18%', type: 'number' }
           ]} rows={classRows} filterable actions={(row) => (
             <>
               <button type="button" onClick={() => setStudentClass(row)}>Thông tin</button>
@@ -543,13 +614,18 @@ export default function CtsvDashboard() {
                 <button
                   className="secondary"
                   disabled={Boolean(assignmentActionBusy) || !canResetAssignments}
-                  title={canResetAssignments ? 'Làm mới danh sách phân công' : 'Chỉ làm mới khi tất cả lớp đã được duyệt'}
+                  title={canResetAssignments ? 'Làm mới danh sách phân công' : 'Chỉ làm mới khi tất cả lớp có sinh viên đã có cố vấn và ở trạng thái đã đóng'}
                   type="button"
-                  onClick={() => assignmentBulkAction('/ctsv/classes/reset-advisors', 'reset')}
+                  onClick={resetAssignments}
                 >
                   {assignmentActionBusy === 'reset' ? 'Đang làm mới...' : 'Làm mới'}
                 </button>
-                <button disabled={Boolean(assignmentActionBusy)} type="button" onClick={() => assignmentBulkAction('/ctsv/classes/send-to-faculties', 'send')}>
+                <button
+                  disabled={assignmentActionBusy === 'send'}
+                  title="Gửi yêu cầu phân công cho Khoa"
+                  type="button"
+                  onClick={sendAssignmentRequests}
+                >
                   {assignmentActionBusy === 'send' ? 'Đang gửi...' : 'Gửi yêu cầu'}
                 </button>
                 <button disabled={Boolean(assignmentActionBusy) || !hasDirectorWaitingAssignments} type="button" onClick={() => assignmentBulkAction('/ctsv/assignments/approve-all', 'approve')}>
@@ -561,11 +637,11 @@ export default function CtsvDashboard() {
               </div>
             </div>
             <DataTable pageSize={4} columns={[
-              { key: 'ma_khoa', label: 'Mã khoa' },
-              { key: 'ten_khoa', label: 'Tên khoa' },
-              { key: 'ten_truong_khoa', label: 'Trưởng khoa', render: (row) => row.ten_truong_khoa || '-' },
-              { key: 'so_lop', label: 'Số lớp' },
-              { key: 'trang_thai', label: 'Trạng thái' }
+              { key: 'ma_khoa', label: 'Mã khoa', width: '14%' },
+              { key: 'ten_khoa', label: 'Tên khoa', width: '26%' },
+              { key: 'ten_truong_khoa', label: 'Trưởng khoa', width: '28%', render: (row) => row.ten_truong_khoa || '-' },
+              { key: 'so_lop', label: 'Số lớp', width: '12%', type: 'number' },
+              { key: 'trang_thai', label: 'Trạng thái', width: '20%' }
             ]} rows={assignmentGroups} actionLabel="" actions={(row) => (
               <div className="icon-actions">
                 <IconButton icon={<SearchIcon />} label="Xem lớp" onClick={() => setAssignmentGroup(row)} />
@@ -574,7 +650,7 @@ export default function CtsvDashboard() {
             <div className="panel-footer-actions">
               <select value={assignmentExportType} onChange={(event) => setAssignmentExportType(event.target.value)}>
                 <option value="csv">CSV</option>
-                <option value="xls">XLS</option>
+                <option value="xlsx">XLSX</option>
               </select>
               <button type="button" onClick={exportAssignments}>Xuất tệp</button>
             </div>
@@ -584,34 +660,34 @@ export default function CtsvDashboard() {
             <div className="panel-header">
               <h2>Yêu cầu thay thế</h2>
               <div className="panel-actions">
-                <button disabled={Boolean(replacementActionBusy)} type="button" onClick={() => replacementBulkAction('/ctsv/replacement-requests/approve-all', 'approve')}>
+                <button disabled={Boolean(replacementActionBusy) || !hasReplacementRequestsForReview} type="button" onClick={() => replacementBulkAction('/ctsv/replacement-requests/approve-all', 'approve')}>
                   {replacementActionBusy === 'approve' ? 'Đang duyệt...' : 'Duyệt tất cả'}
                 </button>
-                <button className="secondary" disabled={Boolean(replacementActionBusy)} type="button" onClick={() => replacementBulkAction('/ctsv/replacement-requests/reject-all', 'reject')}>
+                <button className="secondary" disabled={Boolean(replacementActionBusy) || !hasReplacementRequestsForReview} type="button" onClick={() => replacementBulkAction('/ctsv/replacement-requests/reject-all', 'reject')}>
                   {replacementActionBusy === 'reject' ? 'Đang từ chối...' : 'Từ chối tất cả'}
                 </button>
               </div>
             </div>
             <DataTable pageSize={3} columns={[
-              { key: 'ma_yeu_cau', label: 'Mã yêu cầu' },
-              { key: 'ten_lop', label: 'Lớp' },
-              { key: 'ten_khoa', label: 'Khoa', render: (row) => row.ten_khoa || row.ma_khoa },
-              { key: 'ten_co_van_cu', label: 'Cố vấn cũ' },
-              { key: 'ten_co_van_moi', label: 'Cố vấn mới', render: (row) => row.ten_co_van_moi || '-' },
-              { key: 'trang_thai', label: 'Trạng thái' }
+              { key: 'ma_yeu_cau', label: 'Mã yêu cầu', width: '14%' },
+              { key: 'ma_lop', label: 'Mã lớp', width: '12%' },
+              { key: 'ten_khoa', label: 'Khoa', width: '16%', render: (row) => row.ten_khoa || row.ma_khoa },
+              { key: 'ten_co_van_cu', label: 'Cố vấn cũ', width: '16%' },
+              { key: 'ten_co_van_moi', label: 'Cố vấn mới', width: '16%', render: (row) => row.ten_co_van_moi || '-' },
+              { key: 'ly_do', label: 'Lý do dừng', width: '26%', minWidth: '220px', render: (row) => <ExpandableText text={row.ly_do} /> },
+              { key: 'trang_thai', label: 'Trạng thái', width: '16%', render: (row) => replacementStatusLabel(row.trang_thai) }
             ]} rows={pendingRequests} filterable actionLabel="" actions={(row) => (
               <>
-                {row.trang_thai === 'Đã duyệt bước 1' ? <button onClick={() => assignmentAction(`/ctsv/replacement-requests/${row.ma_yeu_cau}/start-step-2`)}>Duyệt</button> : null}
-                {row.trang_thai === 'Đang duyệt bước 2' ? <button onClick={() => assignmentAction(`/ctsv/replacement-requests/${row.ma_yeu_cau}/approve`)}>Duyệt</button> : null}
-                {['Đã duyệt bước 1', 'Đang duyệt bước 2'].includes(row.trang_thai) ? <button className="secondary" onClick={() => assignmentAction(`/ctsv/replacement-requests/${row.ma_yeu_cau}/reject`)}>Không duyệt</button> : null}
+                {REVIEWABLE_REPLACEMENT_STATUSES.includes(row.trang_thai) ? <button onClick={() => assignmentAction(`/ctsv/replacement-requests/${row.ma_yeu_cau}/approve`)}>Duyệt và Gửi thông báo</button> : null}
+                {REVIEWABLE_REPLACEMENT_STATUSES.includes(row.trang_thai) ? <button className="secondary" onClick={() => assignmentAction(`/ctsv/replacement-requests/${row.ma_yeu_cau}/reject`)}>Không duyệt</button> : null}
               </>
             )} />
             <div className="panel-footer-actions">
               <select value={replacementExportType} onChange={(event) => setReplacementExportType(event.target.value)}>
                 <option value="csv">CSV</option>
-                <option value="xls">XLS</option>
+                <option value="xlsx">XLSX</option>
               </select>
-              <button type="button" onClick={exportReplacements}>Xuất tệp</button>
+              <button type="button" disabled={!pendingRequests.length} onClick={exportReplacements}>Xuất tệp</button>
             </div>
           </section>
         </>
@@ -622,24 +698,24 @@ export default function CtsvDashboard() {
           <section className="panel">
             <h2>Lịch sử phân công</h2>
             <DataTable filterable pageSize={3} columns={[
-              { key: 'ma_phan_cong', label: 'Mã phân công' },
-              { key: 'ten_lop', label: 'Lớp' },
-              { key: 'ten_khoa', label: 'Khoa' },
-              { key: 'ten_truong_khoa', label: 'Trưởng khoa', render: (row) => row.ten_truong_khoa || '-' },
-              { key: 'ten_co_van', label: 'Cố vấn học tập', render: (row) => row.ten_co_van || '-' },
-              { key: 'nam_hoc', label: 'Năm học' }
+              { key: 'ma_phan_cong', label: 'Mã phân công', width: '16%' },
+              { key: 'ma_lop', label: 'Mã lớp', width: '12%' },
+              { key: 'ten_khoa', label: 'Khoa', width: '20%' },
+              { key: 'ten_truong_khoa', label: 'Trưởng khoa', width: '20%', render: (row) => row.ten_truong_khoa || '-' },
+              { key: 'ten_co_van', label: 'Cố vấn học tập', width: '20%', render: (row) => row.ten_co_van || '-' },
+              { key: 'nam_hoc', label: 'Năm học', width: '12%' }
             ]} rows={assignmentHistory} />
           </section>
           <section className="panel">
             <h2>Lịch sử thay thế</h2>
             <DataTable filterable pageSize={3} columns={[
-              { key: 'ma_yeu_cau', label: 'Mã yêu cầu' },
-              { key: 'ten_lop', label: 'Lớp' },
-              { key: 'ten_khoa', label: 'Khoa', render: (row) => row.ten_khoa || row.ma_khoa },
-              { key: 'ten_truong_khoa', label: 'Trưởng khoa', render: (row) => row.ten_truong_khoa || '-' },
-              { key: 'ten_co_van_cu', label: 'Cố vấn cũ' },
-              { key: 'ten_co_van_moi', label: 'Cố vấn mới', render: (row) => row.ten_co_van_moi || '-' },
-              { key: 'nam_hoc', label: 'Năm học', render: (row) => row.nam_hoc || '-' }
+              { key: 'ma_yeu_cau', label: 'Mã yêu cầu', width: '14%' },
+              { key: 'ma_lop', label: 'Mã lớp', width: '12%' },
+              { key: 'ten_khoa', label: 'Khoa', width: '16%', render: (row) => row.ten_khoa || row.ma_khoa },
+              { key: 'ten_co_van_cu', label: 'Cố vấn cũ', width: '16%' },
+              { key: 'ten_co_van_moi', label: 'Cố vấn mới', width: '16%', render: (row) => row.ten_co_van_moi || '-' },
+              { key: 'ly_do', label: 'Lý do dừng', width: '26%', minWidth: '220px', render: (row) => <ExpandableText text={row.ly_do} /> },
+              { key: 'nam_hoc', label: 'Năm học', width: '12%', render: (row) => row.nam_hoc || '-' }
             ]} rows={replacementHistory} />
           </section>
         </>
@@ -653,13 +729,14 @@ export default function CtsvDashboard() {
               <button className="secondary" type="button" onClick={() => setAccountClass(null)}>Đóng</button>
             </header>
             <DataTable pageSize={10} columns={[
-              { key: 'ma_sinh_vien', label: 'Mã số sinh viên' },
-              { key: 'ho_va_ten', label: 'Họ và tên' },
-              { key: 'email', label: 'Email' },
-              { key: 'ten_tai_khoan', label: 'Tên tài khoản' },
+              { key: 'ma_sinh_vien', label: 'Mã số sinh viên', width: '18%' },
+              { key: 'ho_va_ten', label: 'Họ và tên', width: '24%' },
+              { key: 'email', label: 'Email', width: '28%', minWidth: '220px' },
+              { key: 'ten_tai_khoan', label: 'Tên tài khoản', width: '16%' },
               {
                 key: 'is_active',
                 label: 'Trạng thái',
+                width: '14%',
                 renderText: (row) => row.is_active ? 'Đang hoạt động' : 'Ngừng hoạt động',
                 render: (row) => row.is_active ? 'Đang hoạt động' : 'Ngừng hoạt động'
               }
@@ -686,10 +763,10 @@ export default function CtsvDashboard() {
               <StudentEditForm student={editingStudent} classes={classes} onCancel={() => setEditingStudent(null)} onSave={saveStudent} />
             ) : null}
             <DataTable pageSize={10} columns={[
-              { key: 'ma_sinh_vien', label: 'Mã sinh viên' },
-              { key: 'ho_va_ten', label: 'Tên sinh viên' },
-              { key: 'email', label: 'Email' },
-              { key: 'so_dien_thoai', label: 'Số điện thoại' }
+              { key: 'ma_sinh_vien', label: 'Mã sinh viên', width: '18%' },
+              { key: 'ho_va_ten', label: 'Tên sinh viên', width: '26%' },
+              { key: 'email', label: 'Email', width: '34%', minWidth: '220px' },
+              { key: 'so_dien_thoai', label: 'Số điện thoại', width: '18%', type: 'number' }
             ]} rows={studentRows} filterable actionLabel="" actions={(row) => (
               <div className="icon-actions">
                 <IconButton icon={<PenIcon />} label="Chỉnh sửa sinh viên" onClick={() => setEditingStudent(row)} />
@@ -708,11 +785,11 @@ export default function CtsvDashboard() {
               <button className="secondary" type="button" onClick={() => setAssignmentGroup(null)}>Đóng</button>
             </header>
             <DataTable pageSize={4} columns={[
-              { key: 'ma_phan_cong', label: 'Mã phân công' },
-              { key: 'ten_lop', label: 'Tên lớp' },
-              { key: 'ten_khoa', label: 'Khoa' },
-              { key: 'ten_co_van', label: 'Cố vấn học tập', render: (row) => row.ten_co_van || '-' },
-              { key: 'trang_thai', label: 'Trạng thái' }
+              { key: 'ma_phan_cong', label: 'Mã phân công', width: '18%' },
+              { key: 'ma_lop', label: 'Mã lớp', width: '14%' },
+              { key: 'ten_khoa', label: 'Khoa', width: '24%' },
+              { key: 'ten_co_van', label: 'Cố vấn học tập', width: '24%', render: (row) => row.ten_co_van || '-' },
+              { key: 'trang_thai', label: 'Trạng thái', width: '20%' }
             ]} rows={assignmentDetailRows} filterable actions={(row) => (
               <>
                 {row.ma_phan_cong !== '-' && row.trang_thai === DIRECTOR_WAITING ? <button onClick={() => assignmentAction(`/ctsv/assignments/${row.ma_phan_cong}/approve`)}>Duyệt</button> : null}

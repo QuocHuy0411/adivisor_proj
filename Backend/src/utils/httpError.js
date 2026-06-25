@@ -9,7 +9,7 @@ export function notFound(message = 'Không tìm thấy dữ liệu') {
   return new HttpError(404, message);
 }
 
-export function badRequest(message = 'Du lieu khong hop le') {
+export function badRequest(message = 'Dữ liệu không hợp lệ') {
   return new HttpError(400, message);
 }
 
