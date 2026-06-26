@@ -122,11 +122,37 @@ CREATE TABLE IF NOT EXISTS DANG_NHAP_THAT_BAI (
 );
 
 CREATE TABLE IF NOT EXISTS REFRESH_TOKENS (
-  id INT AUTO_INCREMENT PRIMARY KEY,
+  id INT NOT NULL AUTO_INCREMENT,
   ma_tai_khoan VARCHAR(100) NOT NULL,
   token VARCHAR(500) NOT NULL,
   expires_at DATETIME NOT NULL,
+  PRIMARY KEY (id),
   FOREIGN KEY (ma_tai_khoan) REFERENCES TAI_KHOAN(ma_tai_khoan) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS HOI_THOAI (
+  ma_hoi_thoai VARCHAR(50) PRIMARY KEY,
+  ma_sinh_vien VARCHAR(50) NOT NULL,
+  ma_co_van VARCHAR(50) NOT NULL,
+  ma_lop VARCHAR(50) NOT NULL,
+  ngay_tao DATETIME NOT NULL,
+  UNIQUE KEY uk_hoi_thoai_sv_cv (ma_sinh_vien, ma_co_van),
+  FOREIGN KEY (ma_sinh_vien) REFERENCES SINH_VIEN(ma_sinh_vien),
+  FOREIGN KEY (ma_co_van) REFERENCES CVHT(ma_co_van),
+  FOREIGN KEY (ma_lop) REFERENCES LOP(ma_lop)
+);
+
+CREATE TABLE IF NOT EXISTS TIN_NHAN (
+  ma_tin_nhan VARCHAR(50) PRIMARY KEY,
+  ma_hoi_thoai VARCHAR(50) NOT NULL,
+  ma_nguoi_gui VARCHAR(50) NOT NULL,
+  loai_nguoi_gui VARCHAR(20) NOT NULL,
+  noi_dung TEXT NOT NULL,
+  da_doc BOOLEAN NOT NULL DEFAULT FALSE,
+  thoi_gian_gui DATETIME NOT NULL,
+  FOREIGN KEY (ma_hoi_thoai) REFERENCES HOI_THOAI(ma_hoi_thoai),
+  FOREIGN KEY (ma_nguoi_gui) REFERENCES TAI_KHOAN(ma_tai_khoan),
+  CHECK (loai_nguoi_gui IN ('sinhvien', 'covan'))
 );
 
 

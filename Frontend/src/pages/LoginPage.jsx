@@ -9,12 +9,31 @@ export default function LoginPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [form, setForm] = useState({ ten_tai_khoan: '', mat_khau: '' });
-  const [error, setError] = useState(() => sessionStorage.getItem(LOGIN_ERROR_KEY) || '');
+  const [error, setError] = useState(() => {
+    const stored = sessionStorage.getItem(LOGIN_ERROR_KEY);
+    return stored || '';
+  });
   const [googleLoading, setGoogleLoading] = useState(searchParams.get('google') === 'success');
 
   useEffect(() => {
-    if (searchParams.get('google') === 'success' && !loading && !user) {
-      const nextError = 'Đăng nhập Google thất bại hoặc email chưa có trong hệ thống';
+    const googleStatus = searchParams.get('google');
+
+    if (googleStatus === 'error') {
+      const errorMessage = searchParams.get('error_message');
+      const errorCode = searchParams.get('error_code');
+      let nextError;
+      if (errorCode === '4009') {
+        nextError = 'Email Google của bạn chưa được đăng ký trong hệ thống. Vui lòng liên hệ quản trị viên.';
+      } else {
+        nextError = errorMessage
+          ? decodeURIComponent(errorMessage)
+          : 'Đăng nhập Google thất bại';
+      }
+      sessionStorage.setItem(LOGIN_ERROR_KEY, nextError);
+      setError(nextError);
+      setGoogleLoading(false);
+    } else if (googleStatus === 'success' && !loading && !user) {
+      const nextError = 'Đăng nhập Google thất bại. Vui lòng thử lại.';
       sessionStorage.setItem(LOGIN_ERROR_KEY, nextError);
       setError(nextError);
       setGoogleLoading(false);
@@ -24,7 +43,6 @@ export default function LoginPage() {
   if (user?.da_doi_mk) return <Navigate to="/" replace />;
   if (user && !user.da_doi_mk) return <Navigate to="/change-password" replace />;
 
-  // Dang nhap thuong: backend kiem tra brute-force, mat khau va tra user de dieu huong theo da_doi_mk.
   async function submit(event) {
     event.preventDefault();
     try {
@@ -39,7 +57,6 @@ export default function LoginPage() {
     }
   }
 
-  // Dang nhap Google: chuyen sang URL OAuth do backend cap, loi duoc giu trong sessionStorage de hien lai sau redirect.
   async function submitGoogle() {
     try {
       setGoogleLoading(true);
@@ -47,7 +64,7 @@ export default function LoginPage() {
       setError('');
       await loginWithGoogle();
     } catch (err) {
-      const nextError = err.response?.data?.message || err.message || 'Đăng nhập Google thất bại';
+      const nextError = err.response?.data?.message || err.message || 'Dang nhap Google that bai';
       sessionStorage.setItem(LOGIN_ERROR_KEY, nextError);
       setError(nextError);
       setGoogleLoading(false);
@@ -70,7 +87,7 @@ export default function LoginPage() {
           {error ? <div className="error">{error}</div> : null}
           <button type="submit">Đăng nhập</button>
         </form>
-        <div className="auth-divider"><span>hoặc</span></div>
+        <div className="auth-divider"><span>hoac</span></div>
         <button className="google-login-button" type="button" onClick={submitGoogle} disabled={googleLoading}>
           <span className="google-mark" aria-hidden="true">G</span>
           {googleLoading ? 'Đang hoàn tất đăng nhập...' : 'Đăng nhập với Google'}

@@ -25,7 +25,11 @@ public enum ErrorCode {
     PASSWORD_MISMATCH(4016, "Mat khau moi khong khop", HttpStatus.BAD_REQUEST),
     PASSWORD_TOO_SHORT(4017, "Mat khau moi can toi thieu 6 ky tu", HttpStatus.BAD_REQUEST),
     OLD_PASSWORD_WRONG(4018, "Mat khau cu khong dung", HttpStatus.BAD_REQUEST),
-    MAIL_SEND_FAILED(4019, "Gui email that bai. Vui long thu lai sau.", HttpStatus.INTERNAL_SERVER_ERROR);
+    MAIL_SEND_FAILED(4019, "Gui email that bai. Vui long thu lai sau.", HttpStatus.INTERNAL_SERVER_ERROR),
+    FORBIDDEN(4020, "Khong co quyen thuc hien thao tac nay", HttpStatus.FORBIDDEN),
+    NOT_FOUND(4021, "Khong tim thay du lieu", HttpStatus.NOT_FOUND),
+    CHAT_NO_ADVISOR(4022, "Lop chua duoc phan cong CVHT", HttpStatus.BAD_REQUEST),
+    CHAT_INVALID_ROLE(4023, "Chi sinh vien va CVHT moi duoc su dung chat", HttpStatus.FORBIDDEN);
 
     private final int code;
     private final String message;

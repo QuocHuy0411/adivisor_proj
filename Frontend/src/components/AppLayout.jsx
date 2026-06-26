@@ -27,10 +27,12 @@ const roleNavItems = {
   ],
   covan: [
     { key: 'overview', label: 'Lớp phụ trách', to: '/' },
+    { key: 'chat', label: 'Chat sinh viên', to: '/chat' },
     { key: 'notifications', label: 'Thông báo', to: '/notifications' }
   ],
   sinhvien: [
     { key: 'overview', label: 'Thông tin CVHT', to: '/' },
+    { key: 'chat', label: 'Liên hệ với CVHT', to: '/chat' },
     { key: 'notifications', label: 'Thông báo', to: '/notifications' }
   ]
 };
@@ -210,6 +212,7 @@ export default function AppLayout({ title, children, navItems = [], activeNav, o
     if (activeNav) return activeNav === item.key;
     const params = new URLSearchParams(location.search);
     if (item.key === 'notifications') return location.pathname === '/notifications';
+    if (item.key === 'chat') return location.pathname === '/chat';
     if (item.key === 'overview') return location.pathname === '/';
     if (user?.loai_tai_khoan === 'ctsv') return location.pathname === '/' && (params.get('view') || 'create') === item.key;
     if (item.key === 'history') return location.pathname === '/' && params.get('view') === 'history';

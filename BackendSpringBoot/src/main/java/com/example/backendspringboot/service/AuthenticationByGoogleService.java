@@ -34,7 +34,7 @@ public class AuthenticationByGoogleService {
     private String googleClientId;
     @Value("${google.oauth.client-secret:}")
     private String googleClientSecret;
-    @Value("${google.oauth.redirect-uri:${http://localhost:8080/api/auth/google/callback}}")
+    @Value("${google.oauth.redirect-url}")
     private String googleRedirectUri;
 
     @Value("${jwt.accessTokenExpiration:28800}")
