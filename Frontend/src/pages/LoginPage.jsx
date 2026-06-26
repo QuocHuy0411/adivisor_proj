@@ -90,7 +90,7 @@ export default function LoginPage() {
         <div className="auth-divider"><span>hoac</span></div>
         <button className="google-login-button" type="button" onClick={submitGoogle} disabled={googleLoading}>
           <span className="google-mark" aria-hidden="true">G</span>
-          {googleLoading ? 'Dang hoan tat dang nhap...' : 'Dang nhap voi Google'}
+          {googleLoading ? 'Đang hoàn tất đăng nhập...' : 'Đăng nhập với Google'}
         </button>
         <Link className="auth-link" to="/forgot-password">Quên mật khẩu?</Link>
       </section>

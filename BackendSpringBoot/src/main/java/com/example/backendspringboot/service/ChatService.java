@@ -208,6 +208,10 @@ public class ChatService {
                 .tenSinhVien(String.valueOf(student.get("ho_va_ten")))
                 .maCoVan(conversation.getAdvisorId())
                 .tenCoVan(String.valueOf(advisor.get("ho_va_ten")))
+                .emailCoVan(valueOrNull(advisor.get("email")))
+                .soDienThoaiCoVan(valueOrNull(advisor.get("so_dien_thoai")))
+                .chuyenNganhCoVan(valueOrNull(advisor.get("chuyen_nganh")))
+                .tenKhoaCoVan(valueOrNull(advisor.get("ten_khoa")))
                 .maLop(conversation.getClassId())
                 .tenLop(String.valueOf(classInfo.get("ten_lop")))
                 .ngayTao(conversation.getCreatedAt())
@@ -263,7 +267,14 @@ public class ChatService {
 
     private Map<String, Object> loadAdvisorProfile(String advisorId) {
         List<Map<String, Object>> rows = jdbcTemplate.queryForList(
-                "SELECT ma_co_van, ho_va_ten FROM CVHT WHERE ma_co_van = ?",
+                """
+                SELECT cv.ma_co_van, cv.ho_va_ten, cv.so_dien_thoai, cv.chuyen_nganh,
+                       tk.email, k.ten_khoa
+                FROM CVHT cv
+                LEFT JOIN TAI_KHOAN tk ON tk.ma_tai_khoan = cv.ma_tai_khoan
+                LEFT JOIN KHOA k ON k.ma_khoa = cv.ma_khoa
+                WHERE cv.ma_co_van = ?
+                """,
                 advisorId);
         if (rows.isEmpty()) {
             throw new MyAppException(ErrorCode.NOT_FOUND);

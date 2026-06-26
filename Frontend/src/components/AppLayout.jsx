@@ -32,7 +32,7 @@ const roleNavItems = {
   ],
   sinhvien: [
     { key: 'overview', label: 'Thông tin CVHT', to: '/' },
-    { key: 'chat', label: 'Chat CVHT', to: '/chat' },
+    { key: 'chat', label: 'Liên hệ với CVHT', to: '/chat' },
     { key: 'notifications', label: 'Thông báo', to: '/notifications' }
   ]
 };

@@ -20,6 +20,7 @@ export default function ChatPage() {
   const [draft, setDraft] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [showAdvisorInfo, setShowAdvisorInfo] = useState(false);
   const clientRef = useRef(null);
   const subscriptionRef = useRef(null);
   const messagesEndRef = useRef(null);
@@ -50,6 +51,7 @@ export default function ChatPage() {
 
   async function selectConversation(conversation) {
     setActiveConversation(conversation);
+    setShowAdvisorInfo(false);
     setSearchParams({ conversation: conversation.maHoiThoai });
     await loadMessages(conversation.maHoiThoai);
   }
@@ -76,7 +78,7 @@ export default function ChatPage() {
         }
       } catch (err) {
         if (!cancelled) {
-          setError(err.response?.data?.message || 'Khong tai duoc phong chat');
+          setError(err.response?.data?.message || 'Không thể tải phòng chat');
         }
       } finally {
         if (!cancelled) {
@@ -126,6 +128,17 @@ export default function ChatPage() {
       : activeConversation.tenCoVan;
   }, [activeConversation, isAdvisor]);
 
+  const advisorDetails = useMemo(() => {
+    if (!activeConversation || isAdvisor) return [];
+    return [
+      ['Họ và tên', activeConversation.tenCoVan],
+      ['Email', activeConversation.emailCoVan],
+      ['Số điện thoại', activeConversation.soDienThoaiCoVan],
+      ['Khoa', activeConversation.tenKhoaCoVan],
+      ['Chuyên ngành', activeConversation.chuyenNganhCoVan]
+    ];
+  }, [activeConversation, isAdvisor]);
+
   async function handleSend(event) {
     event.preventDefault();
     const content = draft.trim();
@@ -135,7 +148,7 @@ export default function ChatPage() {
       sendChatMessage(clientRef.current, selectedId, content);
       setDraft('');
     } catch (err) {
-      setError(err.response?.data?.message || 'Khong gui duoc tin nhan');
+      setError(err.response?.data?.message || 'Không thể gửi tin nhắn');
     }
   }
 
@@ -146,19 +159,19 @@ export default function ChatPage() {
       await loadConversations();
       await loadMessages(conversation.maHoiThoai);
     } catch (err) {
-      setError(err.response?.data?.message || 'Khong mo duoc phong chat');
+      setError(err.response?.data?.message || 'Không thể mở phòng chat');
     }
   }
 
   return (
-    <AppLayout title="Chat voi CVHT">
+    <AppLayout title="Liên hệ với CVHT">
       <Toast message={error} type="error" onClose={() => setError('')} />
-      <section className="panel chat-layout">
+      <section className={`panel chat-layout ${!isAdvisor ? 'no-sidebar' : ''}`}>
         {isAdvisor ? (
           <aside className="chat-sidebar">
-            <h2>Danh sach hoi thoai</h2>
+            <h2>Hội thoại</h2>
             {conversations.length === 0 ? (
-              <p>Chua co hoi thoai. Chon sinh vien o bang ben duoi de bat dau chat.</p>
+              <p>Chưa có hội thoại. Chọn sinh viên ở bảng bên dưới để bắt đầu chat.</p>
             ) : (
               conversations.map((item) => (
                 <button
@@ -170,7 +183,7 @@ export default function ChatPage() {
                   <strong>{item.tenSinhVien}</strong>
                   <span>{item.tenLop}</span>
                   {item.soTinNhanChuaDoc > 0 ? (
-                    <em>{item.soTinNhanChuaDoc} chua doc</em>
+                    <em>{item.soTinNhanChuaDoc} chưa đọc</em>
                   ) : null}
                 </button>
               ))
@@ -180,15 +193,42 @@ export default function ChatPage() {
 
         <div className="chat-main">
           <div className="chat-header">
-            <h2>{counterpartLabel}</h2>
-            {activeConversation ? (
-              <span>{activeConversation.tenLop}</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: 'rgba(255,255,255,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: '18px', fontWeight: '700' }}>
+                {counterpartLabel ? counterpartLabel.charAt(0).toUpperCase() : '?'}
+              </div>
+              <div>
+                <h2>{counterpartLabel}</h2>
+                {activeConversation ? (
+                  <span>{activeConversation.tenLop}</span>
+                ) : null}
+              </div>
+            </div>
+            {!isAdvisor && activeConversation ? (
+              <button
+                type="button"
+                className="secondary chat-advisor-info-btn"
+                onClick={() => setShowAdvisorInfo((value) => !value)}
+              >
+                {showAdvisorInfo ? 'Ẩn thông tin' : 'ℹ️ Thông tin CVHT'}
+              </button>
             ) : null}
           </div>
 
+          {showAdvisorInfo && advisorDetails.length > 0 ? (
+            <div className="chat-advisor-info">
+              {advisorDetails.map(([label, value]) => (
+                <div key={label}>
+                  <span>{label}</span>
+                  <strong>{value || '-'}</strong>
+                </div>
+              ))}
+            </div>
+          ) : null}
+
           <div className="chat-messages">
-            {loading ? <p>Dang tai tin nhan...</p> : null}
-            {!loading && messages.length === 0 ? <p>Chua co tin nhan nao.</p> : null}
+            {loading ? <p>Đang tải tin nhắn...</p> : null}
+            {!loading && messages.length === 0 ? <p>Chưa có tin nhắn nào. Hãy bắt đầu cuộc trò chuyện!</p> : null}
             {messages.map((message) => {
               const mine = message.maNguoiGui === user?.ma_tai_khoan;
               return (
@@ -208,12 +248,12 @@ export default function ChatPage() {
             <input
               value={draft}
               onChange={(event) => setDraft(event.target.value)}
-              placeholder="Nhap tin nhan..."
+              placeholder="Nhập tin nhắn..."
               maxLength={2000}
               disabled={!selectedId || loading}
             />
-            <button type="submit" disabled={!selectedId || loading || !draft.trim()}>
-              Gui
+            <button type="submit" disabled={!selectedId || loading || !draft.trim()} aria-label="Gửi tin nhắn">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13" /><polygon points="22 2 15 22 11 13 2 9 22 2" /></svg>
             </button>
           </form>
         </div>
@@ -243,7 +283,7 @@ function AdvisorStudentPicker({ onOpenChat }) {
 
   return (
     <section className="panel">
-      <h2>Mo chat voi sinh vien</h2>
+      <h2>Mở chat với sinh viên</h2>
       <div className="panel-actions">
         {classes.map((item) => (
           <button

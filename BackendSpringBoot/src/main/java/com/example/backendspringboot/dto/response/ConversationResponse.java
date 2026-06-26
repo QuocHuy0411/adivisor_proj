@@ -14,6 +14,10 @@ public class ConversationResponse {
     private String tenSinhVien;
     private String maCoVan;
     private String tenCoVan;
+    private String emailCoVan;
+    private String soDienThoaiCoVan;
+    private String chuyenNganhCoVan;
+    private String tenKhoaCoVan;
     private String maLop;
     private String tenLop;
     private LocalDateTime ngayTao;
