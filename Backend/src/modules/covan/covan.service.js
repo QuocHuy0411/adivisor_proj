@@ -2,6 +2,7 @@ import { query, transaction } from '../../config/db.js';
 import { badRequest, forbidden, notFound } from '../../utils/httpError.js';
 import { makeId } from '../../utils/ids.js';
 import { PHAN_CONG, YEU_CAU_THAY_THE } from '../../utils/stateMachine.js';
+import { createSystemNotification } from '../notifications/notifications.service.js';
 
 // Tinh nam hoc hien tai theo cung logic voi phan cong de request thay the khong lech nam hoc.
 function currentAcademicYear(date = new Date()) {
@@ -9,30 +10,6 @@ function currentAcademicYear(date = new Date()) {
   const month = date.getMonth() + 1;
   const startYear = month >= 9 ? year : year - 1;
   return `${startYear}-${startYear + 1}`;
-}
-
-// Tao thong bao he thong khi CVHT gui yeu cau thay the, mac dinh day viec ve Khoa cua lop.
-async function createSystemNotification(connection, { tieu_de, noi_dung, recipients }) {
-  const [senders] = await connection.execute('SELECT ma_nhan_vien FROM NHAN_VIEN_CTSV ORDER BY ma_nhan_vien LIMIT 1');
-  const senderId = senders[0]?.ma_nhan_vien;
-  if (!senderId) return null;
-  const ma_thong_bao = makeId('TB');
-  await connection.execute(
-    'INSERT INTO THONG_BAO (ma_thong_bao, ma_nhan_vien, tieu_de, noi_dung, ngay_gui) VALUES (?, ?, ?, ?, CURDATE())',
-    [ma_thong_bao, senderId, tieu_de, noi_dung]
-  );
-  const uniqueRecipients = Array.from(
-    new Map(recipients.map((recipient) => [`${recipient.loai_nguoi_nhan}:${recipient.ma_doi_tuong}`, recipient])).values()
-  );
-  for (const recipient of uniqueRecipients) {
-    await connection.execute(
-      `INSERT INTO THONG_BAO_NGUOI_NHAN
-       (nguoi_nhan_id, ma_thong_bao, loai_nguoi_nhan, ma_doi_tuong)
-       VALUES (?, ?, ?, ?)`,
-      [makeId('NN'), ma_thong_bao, recipient.loai_nguoi_nhan, recipient.ma_doi_tuong]
-    );
-  }
-  return ma_thong_bao;
 }
 
 // Dashboard CVHT: chi tra ve cac lop ma CVHT dang truc tiep phu trach.

@@ -2,6 +2,7 @@ import { query, transaction } from '../../config/db.js';
 import { badRequest, forbidden, notFound } from '../../utils/httpError.js';
 import { makeId } from '../../utils/ids.js';
 import { assertTransition, PHAN_CONG, YEU_CAU_THAY_THE } from '../../utils/stateMachine.js';
+import { createSystemNotification } from '../notifications/notifications.service.js';
 
 // Dem so lop CVHT dang phu trach hoac dang duoc de xuat de giu gioi han toi da 2 lop.
 async function countAdvisorClasses(ma_co_van) {
@@ -52,29 +53,7 @@ async function assertAdvisorAssignable(ma_khoa, ma_co_van) {
   return advisor;
 }
 
-// Khoa tao thong bao he thong qua mot nhan vien CTSV dai dien, dung khi can chuyen viec len CTSV/Giam doc.
-async function createSystemNotification(connection, { tieu_de, noi_dung, recipients }) {
-  const [senders] = await connection.execute('SELECT ma_nhan_vien FROM NHAN_VIEN_CTSV ORDER BY ma_nhan_vien LIMIT 1');
-  const senderId = senders[0]?.ma_nhan_vien;
-  if (!senderId) return null;
-  const ma_thong_bao = makeId('TB');
-  await connection.execute(
-    'INSERT INTO THONG_BAO (ma_thong_bao, ma_nhan_vien, tieu_de, noi_dung, ngay_gui) VALUES (?, ?, ?, ?, CURDATE())',
-    [ma_thong_bao, senderId, tieu_de, noi_dung]
-  );
-  const uniqueRecipients = Array.from(
-    new Map(recipients.map((recipient) => [`${recipient.loai_nguoi_nhan}:${recipient.ma_doi_tuong}`, recipient])).values()
-  );
-  for (const recipient of uniqueRecipients) {
-    await connection.execute(
-      `INSERT INTO THONG_BAO_NGUOI_NHAN
-       (nguoi_nhan_id, ma_thong_bao, loai_nguoi_nhan, ma_doi_tuong)
-       VALUES (?, ?, ?, ?)`,
-      [makeId('NN'), ma_thong_bao, recipient.loai_nguoi_nhan, recipient.ma_doi_tuong]
-    );
-  }
-  return ma_thong_bao;
-}
+
 
 // Truong Khoa xem cac yeu cau phan cong thuoc khoa minh, khong lay cac PHAN_CONG tao cho luong thay the.
 export async function listAssignments(user) {

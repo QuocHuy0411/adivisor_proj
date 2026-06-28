@@ -4,6 +4,7 @@ import { makeId } from '../../utils/ids.js';
 import { defaultPasswordForRole, hashPassword } from '../../utils/passwords.js';
 import { parseCsv } from '../../utils/csv.js';
 import { assertTransition, LOP, PHAN_CONG, YEU_CAU_THAY_THE } from '../../utils/stateMachine.js';
+import { insertNotification as createNotification } from '../notifications/notifications.service.js';
 
 // Tao tai khoan sinh vien tu ma sinh vien va mat khau mac dinh theo so dien thoai.
 async function createStudentAccount(connection, student) {
@@ -490,26 +491,6 @@ export async function sendClassRequestsToFaculties() {
   });
 }
 
-// Tao thong bao va danh sach nguoi nhan, tu dong loai trung role/doi tuong trong cung mot lan gui.
-async function createNotification(connection, ma_nhan_vien, { tieu_de, noi_dung, recipients }) {
-  const ma_thong_bao = makeId('TB');
-  await connection.execute(
-    'INSERT INTO THONG_BAO (ma_thong_bao, ma_nhan_vien, tieu_de, noi_dung, ngay_gui) VALUES (?, ?, ?, ?, CURDATE())',
-    [ma_thong_bao, ma_nhan_vien, tieu_de, noi_dung]
-  );
-  const uniqueRecipients = Array.from(
-    new Map(recipients.map((recipient) => [`${recipient.loai_nguoi_nhan}:${recipient.ma_doi_tuong}`, recipient])).values()
-  );
-  for (const recipient of uniqueRecipients) {
-    await connection.execute(
-      `INSERT INTO THONG_BAO_NGUOI_NHAN
-       (nguoi_nhan_id, ma_thong_bao, loai_nguoi_nhan, ma_doi_tuong)
-       VALUES (?, ?, ?, ?)`,
-      [makeId('NN'), ma_thong_bao, recipient.loai_nguoi_nhan, recipient.ma_doi_tuong]
-    );
-  }
-  return ma_thong_bao;
-}
 
 // Kiem tra gioi han toi da 2 lop/CVHT truoc khi CTSV dong phan cong hoac thay the.
 async function assertAdvisorCapacity(connection, ma_co_van, ma_lop) {
